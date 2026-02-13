@@ -68,6 +68,17 @@ function ReportPreview({ raceData, settings, onBack }) {
     return data.sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
   }, [raceData.grandFinalsResults, grandFinalsClass, avgKey])
 
+  // Count unique racers from included classes (excluding grand finals to avoid double-counting)
+  const uniqueRacerCount = useMemo(() => {
+    const racerIds = new Set()
+    denClasses.forEach(cls => {
+      cls.results.forEach(racer => {
+        racerIds.add(racer.racerId)
+      })
+    })
+    return racerIds.size
+  }, [denClasses])
+
   return (
     <div>
       {/* Action Bar */}
@@ -111,7 +122,7 @@ function ReportPreview({ raceData, settings, onBack }) {
             {settings.date && (
               <p className="text-lg font-heading text-gray-600 mt-1">{settings.date}</p>
             )}
-            <p className="text-lg font-heading text-gray-600">{raceData.racers.length} Racers</p>
+            <p className="text-lg font-heading text-gray-600">{uniqueRacerCount} Racers</p>
           </div>
 
           {/* Den Results - Two Column Layout */}

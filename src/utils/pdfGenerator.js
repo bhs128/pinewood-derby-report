@@ -34,12 +34,13 @@ export async function generatePDF(element, filename = 'pinewood-derby-report.pdf
   // Calculate scaling to fit content
   const canvasAspect = canvas.width / canvas.height
   const pageAspect = imgWidth / imgHeight
+  const margin = 0.2  // 0.2" margins
   
-  let finalWidth = imgWidth - 1  // 0.5" margins
+  let finalWidth = imgWidth - (margin * 2)
   let finalHeight = finalWidth / canvasAspect
   
-  if (finalHeight > imgHeight - 1) {
-    finalHeight = imgHeight - 1
+  if (finalHeight > imgHeight - (margin * 2)) {
+    finalHeight = imgHeight - (margin * 2)
     finalWidth = finalHeight * canvasAspect
   }
   
@@ -78,7 +79,7 @@ export async function generateMultiPagePDF(element, filename = 'pinewood-derby-r
   
   const pageWidth = 8.5
   const pageHeight = 11
-  const margin = 0.5
+  const margin = 0.2
   
   const contentWidth = pageWidth - (margin * 2)
   const contentHeight = pageHeight - (margin * 2)

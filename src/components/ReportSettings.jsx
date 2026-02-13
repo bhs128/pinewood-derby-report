@@ -143,23 +143,31 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     dragItem.current = { item, column }
     setDragColumn(column)
     e.dataTransfer.effectAllowed = 'move'
+    // Add drag image styling
+    e.target.style.opacity = '0.5'
   }, [])
 
   const handleDragOver = useCallback((e, targetItem, targetColumn) => {
     e.preventDefault()
+    e.stopPropagation()
     dragOverItem.current = { item: targetItem, column: targetColumn }
   }, [])
 
-  const handleDragEnd = useCallback(() => {
-    if (!dragItem.current || !dragOverItem.current) {
+  const handleDrop = useCallback((e, targetItem, targetColumn) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (!dragItem.current) return
+    
+    const { item: sourceItem, column: sourceColumn } = dragItem.current
+    
+    // Don't do anything if dropping on itself
+    if (sourceItem.id === targetItem?.id) {
       dragItem.current = null
       dragOverItem.current = null
       setDragColumn(null)
       return
     }
-
-    const { item: sourceItem, column: sourceColumn } = dragItem.current
-    const { item: targetItem, column: targetColumn } = dragOverItem.current
 
     setFormData(prev => {
       const layout = { ...prev.reportLayout }
@@ -199,14 +207,23 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     setDragColumn(null)
   }, [])
 
+  const handleDragEnd = useCallback((e) => {
+    // Reset opacity
+    if (e?.target) {
+      e.target.style.opacity = '1'
+    }
+    dragItem.current = null
+    dragOverItem.current = null
+    setDragColumn(null)
+  }, [])
+
   const handleColumnDrop = useCallback((e, targetColumn) => {
     e.preventDefault()
     if (!dragItem.current) return
     
-    // If dropping on empty space in column, add to end
-    dragOverItem.current = { item: null, column: targetColumn }
-    handleDragEnd()
-  }, [handleDragEnd])
+    // Dropping on empty column space - add to end
+    handleDrop(e, null, targetColumn)
+  }, [handleDrop])
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target
@@ -474,6 +491,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                         draggable
                         onDragStart={(e) => handleDragStart(e, item, 'leftColumn')}
                         onDragOver={(e) => handleDragOver(e, item, 'leftColumn')}
+                        onDrop={(e) => handleDrop(e, item, 'leftColumn')}
                         onDragEnd={handleDragEnd}
                         className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-shadow text-xs`}
                         style={{ minHeight: `${height}px` }}
@@ -514,6 +532,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                         draggable
                         onDragStart={(e) => handleDragStart(e, item, 'rightColumn')}
                         onDragOver={(e) => handleDragOver(e, item, 'rightColumn')}
+                        onDrop={(e) => handleDrop(e, item, 'rightColumn')}
                         onDragEnd={handleDragEnd}
                         className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-shadow text-xs`}
                         style={{ minHeight: `${height}px` }}

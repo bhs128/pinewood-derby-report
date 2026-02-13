@@ -37,14 +37,30 @@ function ClassMapping({
     return [...new Set(classDetails.map(d => d.className))]
   }, [classDetails])
 
-  // Initialize mapping with best guesses
+  // Get racer counts for auto-skip logic
+  const racerCountsByClass = useMemo(() => {
+    const counts = {}
+    classDetails.forEach(d => {
+      // Sum racer counts across all files for same class name
+      counts[d.className] = (counts[d.className] || 0) + d.racerCount
+    })
+    return counts
+  }, [classDetails])
+
+  // Initialize mapping with best guesses, auto-skip classes with 0 racers
   const initialMapping = useMemo(() => {
     const mapping = {}
     allUniqueClasses.forEach(cls => {
-      mapping[cls] = guessStandardDenName(cls) || ''
+      const racerCount = racerCountsByClass[cls] || 0
+      if (racerCount === 0) {
+        // Auto-skip classes with no racers
+        mapping[cls] = SKIP_CLASS
+      } else {
+        mapping[cls] = guessStandardDenName(cls) || ''
+      }
     })
     return mapping
-  }, [allUniqueClasses])
+  }, [allUniqueClasses, racerCountsByClass])
 
   const [classMapping, setClassMapping] = useState(initialMapping)
   const [sanityWarnings, setSanityWarnings] = useState([])

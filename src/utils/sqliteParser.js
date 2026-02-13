@@ -159,8 +159,15 @@ export function extractIntermediateData(db, year) {
   
   const results = db.query(query)
   
-  // Get unique class names for mapping
-  const uniqueClasses = [...new Set(results.map(r => r.Class))]
+  // Get ALL classes from database (including those with no race data)
+  const allDbClasses = db.query('SELECT Class FROM Classes ORDER BY ClassID')
+    .map(r => r.Class)
+  
+  // Get unique class names from race data
+  const classesWithData = [...new Set(results.map(r => r.Class))]
+  
+  // Combine: all DB classes + any that appeared in race data
+  const uniqueClasses = [...new Set([...allDbClasses, ...classesWithData])]
   
   // Calculate racer count per class (unique racers, not race records)
   const classStats = {}

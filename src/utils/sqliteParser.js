@@ -15,6 +15,11 @@ export const STANDARD_DEN_NAMES = [
 ]
 
 /**
+ * Special value to indicate a class should be skipped/not imported
+ */
+export const SKIP_CLASS = '__SKIP__'
+
+/**
  * Best-guess mapping from raw class names to standard den names
  */
 export function guessStandardDenName(rawClassName) {
@@ -157,9 +162,21 @@ export function extractIntermediateData(db, year) {
   // Get unique class names for mapping
   const uniqueClasses = [...new Set(results.map(r => r.Class))]
   
+  // Calculate racer count per class (unique racers, not race records)
+  const classStats = {}
+  uniqueClasses.forEach(cls => {
+    const classRecords = results.filter(r => r.Class === cls)
+    const uniqueRacers = new Set(classRecords.map(r => r.FullName))
+    classStats[cls] = {
+      racerCount: uniqueRacers.size,
+      recordCount: classRecords.length
+    }
+  })
+  
   return {
     rawRecords: results,
     uniqueClasses,
+    classStats,
     year
   }
 }
@@ -172,7 +189,13 @@ export function extractIntermediateData(db, year) {
  * @returns {Array} - Records with mapped class names
  */
 export function applyClassMapping(records, classMapping, year) {
-  return records.map(record => {
+  // Filter out records for skipped classes
+  const filteredRecords = records.filter(record => {
+    const mappedClass = classMapping[record.Class]
+    return mappedClass && mappedClass !== SKIP_CLASS
+  })
+  
+  return filteredRecords.map(record => {
     const mappedClass = classMapping[record.Class] || record.Class
     const kidCarYear = `${record.FirstName} ${record.LastName} (#${record.CarNumber}'${year}) - ${mappedClass}`
     

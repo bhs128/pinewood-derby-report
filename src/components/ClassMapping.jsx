@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { STANDARD_DEN_NAMES, guessStandardDenName } from '../utils/sqliteParser'
+import { STANDARD_DEN_NAMES, SKIP_CLASS, guessStandardDenName } from '../utils/sqliteParser'
 
 function ClassMapping({ 
   intermediateData, 
@@ -7,14 +7,35 @@ function ClassMapping({
   onMappingComplete, 
   onBack 
 }) {
-  // Collect all unique class names across all files
-  const allUniqueClasses = useMemo(() => {
-    const classSet = new Set()
-    intermediateData.forEach(({ uniqueClasses }) => {
-      uniqueClasses.forEach(cls => classSet.add(cls))
+  // Build detailed class info including source file and racer count
+  const classDetails = useMemo(() => {
+    const details = []
+    intermediateData.forEach(({ uniqueClasses, classStats, fileName }) => {
+      uniqueClasses.forEach(cls => {
+        // Check if this class from this file is already in details
+        const existing = details.find(d => d.className === cls && d.fileName === fileName)
+        if (!existing) {
+          const stats = classStats?.[cls] || { racerCount: 0, recordCount: 0 }
+          details.push({
+            className: cls,
+            fileName: fileName || 'Unknown',
+            racerCount: stats.racerCount,
+            recordCount: stats.recordCount
+          })
+        }
+      })
     })
-    return Array.from(classSet)
+    // Sort by filename then class name
+    return details.sort((a, b) => {
+      if (a.fileName !== b.fileName) return a.fileName.localeCompare(b.fileName)
+      return a.className.localeCompare(b.className)
+    })
   }, [intermediateData])
+
+  // Get unique class names (for mapping keys)
+  const allUniqueClasses = useMemo(() => {
+    return [...new Set(classDetails.map(d => d.className))]
+  }, [classDetails])
 
   // Initialize mapping with best guesses
   const initialMapping = useMemo(() => {
@@ -29,15 +50,16 @@ function ClassMapping({
   const [sanityWarnings, setSanityWarnings] = useState([])
   const [showWarningDetails, setShowWarningDetails] = useState({})
 
-  // Check if all classes are mapped
+  // Check if all classes are mapped (including skip as valid)
   const allMapped = useMemo(() => {
     return allUniqueClasses.every(cls => classMapping[cls])
   }, [allUniqueClasses, classMapping])
 
-  // Count how many classes are mapped to each standard name
+  // Count how many classes are mapped to each standard name (excluding skipped)
   const mappingCounts = useMemo(() => {
     const counts = {}
     STANDARD_DEN_NAMES.forEach(name => counts[name] = 0)
+    counts[SKIP_CLASS] = 0
     Object.values(classMapping).forEach(mapped => {
       if (mapped && counts[mapped] !== undefined) {
         counts[mapped]++
@@ -61,6 +83,7 @@ function ClassMapping({
   const getMappingStatusColor = (rawClass) => {
     const mapped = classMapping[rawClass]
     if (!mapped) return 'border-red-300 bg-red-50'
+    if (mapped === SKIP_CLASS) return 'border-gray-300 bg-gray-100'
     return 'border-green-300 bg-green-50'
   }
 
@@ -72,7 +95,7 @@ function ClassMapping({
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <div className="bg-white rounded-lg shadow-md p-8">
         <h2 className="text-xl font-bold text-gray-800 mb-2">Map Class Names to Standard Dens</h2>
         <p className="text-gray-600 mb-6">
@@ -89,12 +112,18 @@ function ClassMapping({
         </div>
 
         {/* Mapping Table */}
-        <div className="mb-6">
+        <div className="mb-6 overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-100">
                 <th className="text-left p-3 border-b font-medium text-gray-700">
+                  Source File
+                </th>
+                <th className="text-left p-3 border-b font-medium text-gray-700">
                   Original Class Name
+                </th>
+                <th className="text-center p-3 border-b font-medium text-gray-700 w-24">
+                  Racers
                 </th>
                 <th className="text-left p-3 border-b font-medium text-gray-700">
                   → Map To Standard Den
@@ -105,34 +134,47 @@ function ClassMapping({
               </tr>
             </thead>
             <tbody>
-              {allUniqueClasses.map((rawClass, index) => (
+              {classDetails.map((detail, index) => (
                 <tr 
-                  key={rawClass} 
+                  key={`${detail.fileName}-${detail.className}`} 
                   className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
                 >
                   <td className="p-3 border-b">
-                    <span className="font-mono text-gray-800">{rawClass}</span>
+                    <span className="text-sm text-gray-600">{detail.fileName}</span>
+                  </td>
+                  <td className="p-3 border-b">
+                    <span className="font-mono text-gray-800">{detail.className}</span>
+                  </td>
+                  <td className="p-3 border-b text-center">
+                    <span className="text-sm font-medium text-gray-700">{detail.racerCount}</span>
                   </td>
                   <td className="p-3 border-b">
                     <select
-                      value={classMapping[rawClass] || ''}
-                      onChange={(e) => handleMappingChange(rawClass, e.target.value)}
-                      className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-derby-blue ${getMappingStatusColor(rawClass)}`}
+                      value={classMapping[detail.className] || ''}
+                      onChange={(e) => handleMappingChange(detail.className, e.target.value)}
+                      className={`w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-derby-blue ${getMappingStatusColor(detail.className)}`}
                     >
                       <option value="">-- Select Standard Den --</option>
+                      <option value={SKIP_CLASS} className="text-gray-500 italic">⊘ Skip / Do not import</option>
                       {STANDARD_DEN_NAMES.map(name => (
                         <option 
                           key={name} 
                           value={name}
                           className={getStandardDenWarning(name)}
                         >
-                          {name} {mappingCounts[name] > 0 && classMapping[rawClass] !== name ? `(${mappingCounts[name]} mapped)` : ''}
+                          {name} {mappingCounts[name] > 0 && classMapping[detail.className] !== name ? `(${mappingCounts[name]} mapped)` : ''}
                         </option>
                       ))}
                     </select>
                   </td>
                   <td className="p-3 border-b text-center">
-                    {classMapping[rawClass] ? (
+                    {classMapping[detail.className] === SKIP_CLASS ? (
+                      <span className="inline-flex items-center text-gray-400" title="Skipped">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                      </span>
+                    ) : classMapping[detail.className] ? (
                       <span className="inline-flex items-center text-green-600">
                         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -254,7 +296,16 @@ function ClassMapping({
           <div className="mb-4 p-4 bg-red-50 border border-red-300 rounded">
             <p className="text-red-700">
               <strong>⚠️ Warning:</strong> Some classes are not mapped. 
-              Please select a standard den for all classes before continuing.
+              Please select a standard den or "Skip" for all classes before continuing.
+            </p>
+          </div>
+        )}
+
+        {/* Skipped classes info */}
+        {mappingCounts[SKIP_CLASS] > 0 && (
+          <div className="mb-4 p-4 bg-gray-50 border border-gray-300 rounded">
+            <p className="text-gray-700">
+              <strong>ℹ️ Note:</strong> {mappingCounts[SKIP_CLASS]} class(es) will be skipped and not imported.
             </p>
           </div>
         )}

@@ -210,8 +210,8 @@ function ClassMapping({
           </table>
         </div>
 
-        {/* Warning about duplicate mappings */}
-        {Object.entries(mappingCounts).some(([name, count]) => count > 1) && (
+        {/* Warning about duplicate mappings (excluding SKIP) */}
+        {Object.entries(mappingCounts).some(([name, count]) => count > 1 && name !== SKIP_CLASS) && (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded">
             <h4 className="font-medium text-amber-800 mb-2">⚠️ Multiple Classes Mapped to Same Den</h4>
             <p className="text-amber-700 text-sm">
@@ -220,7 +220,7 @@ function ClassMapping({
             </p>
             <ul className="mt-2 text-sm text-amber-700">
               {Object.entries(mappingCounts)
-                .filter(([_, count]) => count > 1)
+                .filter(([name, count]) => count > 1 && name !== SKIP_CLASS)
                 .map(([name, count]) => (
                   <li key={name}>• {name}: {count} classes mapped</li>
                 ))

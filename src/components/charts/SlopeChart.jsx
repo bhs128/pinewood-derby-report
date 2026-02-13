@@ -83,12 +83,18 @@ function SlopeChart({ grandFinalsData, denResultsByRacer, avgKey = 'avgExceptSlo
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: {
+        right: 10
+      }
+    },
     plugins: {
       legend: {
         position: 'right',
+        align: 'center',
         labels: {
           boxWidth: 10,
-          padding: 6,
+          padding: 8,
           font: { size: 9 }
         }
       },
@@ -113,9 +119,10 @@ function SlopeChart({ grandFinalsData, denResultsByRacer, avgKey = 'avgExceptSlo
         }
       },
       y: {
+        reverse: true,
         title: {
           display: true,
-          text: 'Avg Time (seconds)',
+          text: 'Avg Time (seconds) - Lower is Better',
           font: { size: 11 }
         },
         ticks: {

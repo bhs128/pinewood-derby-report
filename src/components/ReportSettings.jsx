@@ -36,6 +36,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
   console.log('Available classes:', raceData.classes.map(c => c.name))
   
   // Initialize class config with sorted order - use useMemo to avoid recreating on every render
+  // All classes that reach this stage were already filtered in the mapping step
   const initialClassConfig = useMemo(() => {
     if (settings.classConfig) return settings.classConfig
     
@@ -44,7 +45,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       .map((cls, i) => ({
         key: cls.name.toLowerCase(), // Use lowercase name as stable key
         name: cls.name,
-        included: !cls.name.toLowerCase().includes('sibling'), // exclude siblings by default
+        included: true, // All classes are included (filtering done in mapping step)
         order: i
       }))
   }, [raceData.classes, settings.classConfig])
@@ -100,38 +101,6 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       ...prev,
       designAwards: prev.designAwards.filter((_, i) => i !== index)
     }))
-  }, [])
-
-  // Class configuration handlers
-  const handleClassToggle = useCallback((classKey) => {
-    setFormData(prev => ({
-      ...prev,
-      classConfig: prev.classConfig.map(cls =>
-        cls.key === classKey ? { ...cls, included: !cls.included } : cls
-      )
-    }))
-  }, [])
-
-  const handleSetGrandFinals = useCallback((classKey) => {
-    setFormData(prev => ({
-      ...prev,
-      grandFinalsKey: prev.grandFinalsKey === classKey ? null : classKey
-    }))
-  }, [])
-
-  const moveClass = useCallback((index, direction) => {
-    setFormData(prev => {
-      const newConfig = [...prev.classConfig]
-      const newIndex = index + direction
-      if (newIndex < 0 || newIndex >= newConfig.length) return prev
-      
-      // Swap
-      [newConfig[index], newConfig[newIndex]] = [newConfig[newIndex], newConfig[index]]
-      // Update order values
-      newConfig.forEach((cls, i) => cls.order = i)
-      
-      return { ...prev, classConfig: newConfig }
-    })
   }, [])
 
   const handleSubmit = useCallback((e) => {
@@ -264,50 +233,29 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
           </p>
         </div>
 
-        {/* Classes/Dens Configuration */}
+        {/* Classes/Dens Summary (read-only, set in mapping step) */}
         <div className="mb-8">
-          <h3 className="font-medium text-gray-700 mb-3">Classes/Dens to Include</h3>
+          <h3 className="font-medium text-gray-700 mb-3">Classes/Dens Included</h3>
           <p className="text-sm text-gray-500 mb-3">
-            Check dens to include in report. Mark one class as Grand Finals for the slope chart comparison.
+            Classes are configured in the previous mapping step. The following dens will be included:
           </p>
           
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="px-3 py-2 text-left w-12">Include</th>
-                  <th className="px-3 py-2 text-center w-16">Finals</th>
                   <th className="px-3 py-2 text-left">Class/Den Name</th>
                   <th className="px-3 py-2 text-center w-20"># Racers</th>
                   <th className="px-3 py-2 text-left">Top Racer</th>
-                  <th className="px-3 py-2 text-center w-20">Order</th>
                 </tr>
               </thead>
               <tbody>
-                {formData.classConfig.map((cls, index) => {
+                {formData.classConfig.map((cls) => {
                   const results = raceData.resultsByClass[cls.key] || []
                   const topRacer = getTopRacer(cls.key)
                   const isGrandFinals = formData.grandFinalsKey === cls.key
                   return (
-                    <tr key={cls.key} className={`border-t ${cls.included ? '' : 'bg-gray-50 text-gray-400'} ${isGrandFinals ? 'bg-yellow-50' : ''}`}>
-                      <td className="px-3 py-2">
-                        <input
-                          type="checkbox"
-                          checked={cls.included}
-                          onChange={() => handleClassToggle(cls.key)}
-                          className="rounded text-derby-blue"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <input
-                          type="radio"
-                          name="grandFinalsKey"
-                          checked={isGrandFinals}
-                          onChange={() => handleSetGrandFinals(cls.key)}
-                          className="text-yellow-500"
-                          title="Mark as Grand Finals"
-                        />
-                      </td>
+                    <tr key={cls.key} className={`border-t ${isGrandFinals ? 'bg-yellow-50' : ''}`}>
                       <td className="px-3 py-2 font-medium">
                         {cls.name}
                         {isGrandFinals && <span className="ml-2 text-xs text-yellow-600">★ Finals</span>}
@@ -315,26 +263,6 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                       <td className="px-3 py-2 text-center">{results.length}</td>
                       <td className="px-3 py-2">
                         {topRacer ? `${topRacer.firstName} ${topRacer.lastName}` : '-'}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <div className="flex justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => moveClass(index, -1)}
-                            disabled={index === 0}
-                            className="p-1 text-gray-500 hover:text-derby-blue disabled:opacity-30"
-                          >
-                            ▲
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveClass(index, 1)}
-                            disabled={index === formData.classConfig.length - 1}
-                            className="p-1 text-gray-500 hover:text-derby-blue disabled:opacity-30"
-                          >
-                            ▼
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   )

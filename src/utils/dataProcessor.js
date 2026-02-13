@@ -15,7 +15,7 @@ export function formatTime(time, decimals = 3) {
  * Columns to include in CSV/HTML export (in order)
  */
 const EXPORT_COLUMNS = [
-  'Year', 'FirstName', 'LastName', 'CarNumber', 'Class', 'OriginalClass',
+  'Year', 'FirstName', 'LastName', 'CarNumber', 'CarName', 'Class', 'OriginalClass',
   'RoundID', 'Heat', 'Lane', 'Completed', 'FinishTime', 'FinishPlace',
   'FullName', 'KidCarYear'
 ]
@@ -179,7 +179,7 @@ export function processIntermediateData(intermediateDataSets, classMapping, year
         firstName: record.FirstName,
         lastName: record.LastName,
         carNumber: record.CarNumber,
-        carName: '', // Not available in the new query
+        carName: record.CarName || '',
         fullName: record.FullName,
         kidCarYear: record.KidCarYear,
         year: record.Year
@@ -196,7 +196,7 @@ export function processIntermediateData(intermediateDataSets, classMapping, year
       firstName: r.FirstName,
       lastName: r.LastName,
       carNumber: r.CarNumber,
-      carName: '',
+      carName: r.CarName || '',
       classId: classes.find(c => c.name === r.Class)?.id || 0,
       className: r.Class,
       roundId: r.RoundID,

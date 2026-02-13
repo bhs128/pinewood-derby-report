@@ -136,12 +136,12 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
 
   // Drag state
   const dragItem = useRef(null)
-  const dragOverItem = useRef(null)
-  const [dragColumn, setDragColumn] = useState(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOverTarget, setDragOverTarget] = useState(null) // { itemId, column, position: 'above'|'below' }
 
   const handleDragStart = useCallback((e, item, column) => {
     dragItem.current = { item, column }
-    setDragColumn(column)
+    setIsDragging(true)
     e.dataTransfer.effectAllowed = 'move'
     // Add drag image styling
     e.target.style.opacity = '0.5'
@@ -150,7 +150,18 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
   const handleDragOver = useCallback((e, targetItem, targetColumn) => {
     e.preventDefault()
     e.stopPropagation()
-    dragOverItem.current = { item: targetItem, column: targetColumn }
+    
+    if (!dragItem.current || dragItem.current.item.id === targetItem?.id) {
+      setDragOverTarget(null)
+      return
+    }
+    
+    // Determine if we're above or below the center of the target element
+    const rect = e.currentTarget.getBoundingClientRect()
+    const midY = rect.top + rect.height / 2
+    const position = e.clientY < midY ? 'above' : 'below'
+    
+    setDragOverTarget({ itemId: targetItem?.id, column: targetColumn, position })
   }, [])
 
   const handleDrop = useCallback((e, targetItem, targetColumn) => {
@@ -164,10 +175,13 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     // Don't do anything if dropping on itself
     if (sourceItem.id === targetItem?.id) {
       dragItem.current = null
-      dragOverItem.current = null
-      setDragColumn(null)
+      setIsDragging(false)
+      setDragOverTarget(null)
       return
     }
+
+    // Determine insert position based on drop position
+    const insertBelow = dragOverTarget?.position === 'below'
 
     setFormData(prev => {
       const layout = { ...prev.reportLayout }
@@ -183,6 +197,11 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       let targetIndex = targetItem 
         ? targetList.findIndex(i => i.id === targetItem.id)
         : targetList.length
+      
+      // If inserting below, increment target index
+      if (insertBelow && targetItem) {
+        targetIndex++
+      }
       
       // If moving within same column and source was before target, adjust
       if (sourceColumn === targetColumn && sourceIndex < targetIndex) {
@@ -203,9 +222,9 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     })
 
     dragItem.current = null
-    dragOverItem.current = null
-    setDragColumn(null)
-  }, [])
+    setIsDragging(false)
+    setDragOverTarget(null)
+  }, [dragOverTarget])
 
   const handleDragEnd = useCallback((e) => {
     // Reset opacity
@@ -213,8 +232,15 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       e.target.style.opacity = '1'
     }
     dragItem.current = null
-    dragOverItem.current = null
-    setDragColumn(null)
+    setIsDragging(false)
+    setDragOverTarget(null)
+  }, [])
+
+  const handleDragLeave = useCallback((e) => {
+    // Only clear if leaving the item completely (not entering a child)
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverTarget(null)
+    }
   }, [])
 
   const handleColumnDrop = useCallback((e, targetColumn) => {
@@ -261,10 +287,25 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
   // Get the averaging key based on method
   const avgKey = formData.avgMethod === 'allHeats' ? 'avgTime' : 'avgExceptSlowest'
 
-  // Get list of racers for autocomplete (name only for winner field)
-  const racerOptions = raceData.racers.map(r => 
-    `${r.firstName} ${r.lastName}`
-  )
+  // Get deduplicated list of racers for autocomplete (by name)
+  // Also build a map of name -> racer info for auto-filling car details
+  const { racerOptions, racerInfoMap } = useMemo(() => {
+    const seenNames = new Map() // name -> {carNumber, carName}
+    const options = []
+    
+    raceData.racers.forEach(r => {
+      const name = `${r.firstName} ${r.lastName}`
+      if (!seenNames.has(name)) {
+        seenNames.set(name, {
+          carNumber: r.carNumber,
+          carName: r.carName || ''
+        })
+        options.push(name)
+      }
+    })
+    
+    return { racerOptions: options, racerInfoMap: seenNames }
+  }, [raceData.racers])
   
   // Get list of car names for autocomplete
   const carNameOptions = useMemo(() => {
@@ -274,6 +315,24 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     })
     return Array.from(names)
   }, [raceData.racers])
+
+  // Handle winner selection - auto-fill car info if available
+  const handleWinnerChange = useCallback((index, value) => {
+    const racerInfo = racerInfoMap.get(value)
+    setFormData(prev => ({
+      ...prev,
+      designAwards: prev.designAwards.map((award, i) => 
+        i === index 
+          ? { 
+              ...award, 
+              winner: value,
+              // Auto-fill car name if we have it and the field is currently empty
+              carName: (racerInfo && !award.carName) ? racerInfo.carName : award.carName
+            } 
+          : award
+      )
+    }))
+  }, [racerInfoMap])
   
   // Compute top racer for each class based on current avgMethod
   const getTopRacer = useCallback((classKey) => {
@@ -469,8 +528,8 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
               <div className="grid grid-cols-2 gap-3 mb-3">
                 {/* Left Column */}
                 <div 
-                  className={`space-y-2 min-h-[100px] p-2 rounded border-2 border-dashed transition-colors ${
-                    dragColumn === 'rightColumn' ? 'border-blue-300 bg-blue-50' : 'border-transparent'
+                  className={`space-y-1 min-h-[100px] p-2 rounded border-2 border-dashed transition-colors ${
+                    isDragging ? 'border-blue-300 bg-blue-50' : 'border-transparent'
                   }`}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => handleColumnDrop(e, 'leftColumn')}
@@ -485,17 +544,33 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                       : item.type === 'slope-chart'
                         ? 'bg-green-100 border-green-300'
                         : 'bg-white border-gray-200'
+                    const isDropTarget = dragOverTarget?.itemId === item.id
+                    const dropPosition = dragOverTarget?.position
                     return (
                       <div 
                         key={item.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, item, 'leftColumn')}
                         onDragOver={(e) => handleDragOver(e, item, 'leftColumn')}
+                        onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, item, 'leftColumn')}
                         onDragEnd={handleDragEnd}
-                        className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-shadow text-xs`}
-                        style={{ minHeight: `${height}px` }}
+                        className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-all text-xs relative ${
+                          isDropTarget ? 'ring-2 ring-blue-400' : ''
+                        }`}
+                        style={{ 
+                          minHeight: `${height}px`,
+                          marginTop: isDropTarget && dropPosition === 'above' ? '20px' : '4px',
+                          marginBottom: isDropTarget && dropPosition === 'below' ? '20px' : '4px'
+                        }}
                       >
+                        {/* Drop indicator line */}
+                        {isDropTarget && dropPosition === 'above' && (
+                          <div className="absolute -top-3 left-0 right-0 h-1 bg-blue-500 rounded" />
+                        )}
+                        {isDropTarget && dropPosition === 'below' && (
+                          <div className="absolute -bottom-3 left-0 right-0 h-1 bg-blue-500 rounded" />
+                        )}
                         <div className="font-bold text-derby-blue flex items-center gap-1">
                           <span className="text-gray-400">☰</span>
                           {item.name}
@@ -510,8 +585,8 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                 
                 {/* Right Column */}
                 <div 
-                  className={`space-y-2 min-h-[100px] p-2 rounded border-2 border-dashed transition-colors ${
-                    dragColumn === 'leftColumn' ? 'border-blue-300 bg-blue-50' : 'border-transparent'
+                  className={`space-y-1 min-h-[100px] p-2 rounded border-2 border-dashed transition-colors ${
+                    isDragging ? 'border-blue-300 bg-blue-50' : 'border-transparent'
                   }`}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => handleColumnDrop(e, 'rightColumn')}
@@ -526,17 +601,33 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                       : item.type === 'slope-chart'
                         ? 'bg-green-100 border-green-300'
                         : 'bg-white border-gray-200'
+                    const isDropTarget = dragOverTarget?.itemId === item.id
+                    const dropPosition = dragOverTarget?.position
                     return (
                       <div 
                         key={item.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, item, 'rightColumn')}
                         onDragOver={(e) => handleDragOver(e, item, 'rightColumn')}
+                        onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, item, 'rightColumn')}
                         onDragEnd={handleDragEnd}
-                        className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-shadow text-xs`}
-                        style={{ minHeight: `${height}px` }}
+                        className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-all text-xs relative ${
+                          isDropTarget ? 'ring-2 ring-blue-400' : ''
+                        }`}
+                        style={{ 
+                          minHeight: `${height}px`,
+                          marginTop: isDropTarget && dropPosition === 'above' ? '20px' : '4px',
+                          marginBottom: isDropTarget && dropPosition === 'below' ? '20px' : '4px'
+                        }}
                       >
+                        {/* Drop indicator line */}
+                        {isDropTarget && dropPosition === 'above' && (
+                          <div className="absolute -top-3 left-0 right-0 h-1 bg-blue-500 rounded" />
+                        )}
+                        {isDropTarget && dropPosition === 'below' && (
+                          <div className="absolute -bottom-3 left-0 right-0 h-1 bg-blue-500 rounded" />
+                        )}
                         <div className="font-bold text-derby-blue flex items-center gap-1">
                           <span className="text-gray-400">☰</span>
                           {item.name}
@@ -603,7 +694,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                   <input
                     type="text"
                     value={award.winner}
-                    onChange={(e) => handleAwardChange(index, 'winner', e.target.value)}
+                    onChange={(e) => handleWinnerChange(index, e.target.value)}
                     list={`racers-${index}`}
                     className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-derby-blue"
                     placeholder="Winner (Scout Name)"

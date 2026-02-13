@@ -217,37 +217,52 @@ export function applyClassMapping(records, classMapping, year) {
 
 /**
  * Perform sanity check on merged data
- * Ensures each KidCarYear appears in exactly one den race (excluding Grand Finals)
+ * Ensures each racer appears in exactly one den race (excluding Grand Finals)
+ * Uses name+carNumber as key (not KidCarYear which includes class name)
  * @param {Array} mergedRecords - All merged records with mapped classes
  * @returns {Object} - Sanity check results with warnings
  */
 export function performSanityCheck(mergedRecords, grandFinalsClass = 'Grand Finals') {
   const warnings = []
   
-  // Get all unique KidCarYear values
-  const kidCarYears = [...new Set(mergedRecords.map(r => r.KidCarYear))]
+  // Create a racer key without class name for matching across den and grand finals
+  const getRacerKey = (r) => `${r.FirstName}|${r.LastName}|${r.CarNumber}`
   
-  // For each KidCarYear, check which dens they appear in (excluding Grand Finals)
+  // Get all unique racer keys (without class name)
+  const racerKeys = [...new Set(mergedRecords.map(getRacerKey))]
+  
+  // For each racer, check which dens they appear in (excluding Grand Finals)
   const denParticipation = new Map()
   
-  kidCarYears.forEach(kcy => {
-    const participantRecords = mergedRecords.filter(r => r.KidCarYear === kcy)
+  racerKeys.forEach(racerKey => {
+    const participantRecords = mergedRecords.filter(r => getRacerKey(r) === racerKey)
     const dens = [...new Set(participantRecords.map(r => r.Class))]
       .filter(cls => cls !== grandFinalsClass)
     
-    denParticipation.set(kcy, dens)
+    // Also store a sample record for display purposes
+    const sampleRecord = participantRecords[0]
+    denParticipation.set(racerKey, { 
+      dens, 
+      name: `${sampleRecord.FirstName} ${sampleRecord.LastName} (#${sampleRecord.CarNumber})`
+    })
   })
   
   // Check for issues
   const multiDenRacers = []
   const noDenRacers = []
   
-  denParticipation.forEach((dens, kcy) => {
+  denParticipation.forEach(({ dens, name }, racerKey) => {
     if (dens.length > 1) {
-      multiDenRacers.push({ kidCarYear: kcy, dens })
+      multiDenRacers.push({ racerKey, name, dens })
     } else if (dens.length === 0) {
-      // Only in Grand Finals - might be an issue or might be intentional
-      noDenRacers.push({ kidCarYear: kcy })
+      // Check if this racer is in Grand Finals
+      const inGrandFinals = mergedRecords.some(r => 
+        getRacerKey(r) === racerKey && r.Class === grandFinalsClass
+      )
+      if (inGrandFinals) {
+        // Only in Grand Finals - might be an issue or might be intentional
+        noDenRacers.push({ racerKey, name })
+      }
     }
   })
   
@@ -266,27 +281,6 @@ export function performSanityCheck(mergedRecords, grandFinalsClass = 'Grand Fina
       severity: 'warning',
       message: `${noDenRacers.length} racer(s) appear only in Grand Finals without a den race`,
       details: noDenRacers
-    })
-  }
-  
-  // Check for Grand Finals participants who aren't in a den race
-  const grandFinalsKCYs = [...new Set(
-    mergedRecords
-      .filter(r => r.Class === grandFinalsClass)
-      .map(r => r.KidCarYear)
-  )]
-  
-  const gfNotInDen = grandFinalsKCYs.filter(kcy => {
-    const dens = denParticipation.get(kcy) || []
-    return dens.length === 0
-  })
-  
-  if (gfNotInDen.length > 0 && noDenRacers.length === 0) {
-    warnings.push({
-      type: 'gf-no-den',
-      severity: 'info',
-      message: `${gfNotInDen.length} Grand Finals participant(s) have no den race data`,
-      details: gfNotInDen.map(kcy => ({ kidCarYear: kcy }))
     })
   }
   

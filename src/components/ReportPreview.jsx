@@ -183,6 +183,25 @@ function ReportPreview({ raceData, settings, onBack }) {
             </div>
           )}
 
+          {/* Slope Chart - Single Column, after Grand Finals */}
+          {grandFinalsData.length > 0 && (
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
+                  Slope Chart: Den Avg vs Grand Finals Avg
+                </h3>
+                <div className="chart-container" style={{ height: '350px' }}>
+                  <SlopeChart 
+                    grandFinalsData={grandFinalsData} 
+                    denResultsByRacer={denResultsByRacer}
+                    avgKey={avgKey}
+                  />
+                </div>
+              </div>
+              <div></div>
+            </div>
+          )}
+
           {/* Design Awards */}
           {settings.designAwards && settings.designAwards.some(a => a.winner) && (
             <div className="mb-6">
@@ -220,25 +239,6 @@ function ReportPreview({ raceData, settings, onBack }) {
               />
             </div>
           </div>
-
-          {/* Slope Chart - Single Column */}
-          {grandFinalsData.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
-                  Slope Chart: Den Avg vs Grand Finals Avg
-                </h3>
-                <div className="chart-container" style={{ height: '350px' }}>
-                  <SlopeChart 
-                    grandFinalsData={grandFinalsData} 
-                    denResultsByRacer={denResultsByRacer}
-                    avgKey={avgKey}
-                  />
-                </div>
-              </div>
-              <div></div>
-            </div>
-          )}
         </div>
       </div>
     </div>

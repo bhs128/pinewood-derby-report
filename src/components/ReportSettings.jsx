@@ -31,6 +31,10 @@ function getDenSortOrder(name) {
 }
 
 function ReportSettings({ raceData, settings, onComplete, onBack }) {
+  // Debug: log available keys
+  console.log('Available resultsByClass keys:', Object.keys(raceData.resultsByClass))
+  console.log('Available classes:', raceData.classes.map(c => c.name))
+  
   // Initialize class config with sorted order - use useMemo to avoid recreating on every render
   const initialClassConfig = useMemo(() => {
     if (settings.classConfig) return settings.classConfig

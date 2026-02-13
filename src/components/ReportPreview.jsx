@@ -166,17 +166,20 @@ function ReportPreview({ raceData, settings, onBack }) {
             </div>
           </div>
 
-          {/* Grand Finals - Full Width */}
+          {/* Grand Finals - Single Column */}
           {grandFinalsData.length > 0 && (
-            <div className="mb-6">
-              <ResultsTable
-                className="Grand Finals"
-                results={grandFinalsData}
-                finalists={[]}
-                wildcards={[]}
-                showDenOrigin={true}
-                avgKey={avgKey}
-              />
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <ResultsTable
+                  className={grandFinalsClass?.name || "Grand Finals"}
+                  results={grandFinalsData}
+                  finalists={[]}
+                  wildcards={[]}
+                  showDenOrigin={true}
+                  avgKey={avgKey}
+                />
+              </div>
+              <div></div>
             </div>
           )}
 
@@ -218,19 +221,22 @@ function ReportPreview({ raceData, settings, onBack }) {
             </div>
           </div>
 
-          {/* Slope Chart - Only if Grand Finals data exists */}
+          {/* Slope Chart - Single Column */}
           {grandFinalsData.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
-                Slope Chart: Den Avg vs Grand Finals Avg
-              </h3>
-              <div className="chart-container" style={{ height: '350px' }}>
-                <SlopeChart 
-                  grandFinalsData={grandFinalsData} 
-                  denResultsByRacer={denResultsByRacer}
-                  avgKey={avgKey}
-                />
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
+                <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
+                  Slope Chart: Den Avg vs Grand Finals Avg
+                </h3>
+                <div className="chart-container" style={{ height: '350px' }}>
+                  <SlopeChart 
+                    grandFinalsData={grandFinalsData} 
+                    denResultsByRacer={denResultsByRacer}
+                    avgKey={avgKey}
+                  />
+                </div>
               </div>
+              <div></div>
             </div>
           )}
         </div>

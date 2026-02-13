@@ -697,7 +697,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                 </div>
               </div>
             </div>
-          )})}
+          )})()}
         </div>
 
         {/* Design Awards */}

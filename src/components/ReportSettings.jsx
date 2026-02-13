@@ -545,7 +545,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
             
             // Helper to get item height units (for column balance indicator)
             const getItemUnits = (item) => {
-              if (item.type === 'slope-chart') return 10, // Slope chart counts as ~10 racers
+              if (item.type === 'slope-chart') return 10 // Slope chart counts as ~10 racers
               if (item.type === 'design-awards') return Math.max(2, filledAwardsCount)
               return item.racerCount
             }

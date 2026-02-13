@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 
 const DEFAULT_DESIGN_CATEGORIES = [
   'Most Likely to Win',
@@ -19,6 +19,11 @@ const STANDARD_DEN_ORDER = [
   'arrow of light', 'aol',
   'grand final', 'grand finals'
 ]
+
+// Height per racer in pixels for layout preview (scaled down)
+const HEIGHT_PER_RACER = 8
+const MIN_ITEM_HEIGHT = 24
+const CHART_HEIGHT = 60
 
 function getDenSortOrder(name) {
   const lower = name.toLowerCase()
@@ -74,8 +79,134 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     grandFinalsKey: initialGrandFinalsKey,
     avgMethod: settings.avgMethod || 'dropSlowest', // 'dropSlowest' or 'allHeats'
     excludeGrandFinalsWinners: settings.excludeGrandFinalsWinners ?? true, // Default to true (GrandPrix Race Manager default)
-    numGrandFinalsWinners: settings.numGrandFinalsWinners || 3 // Default 3 (top 3 get overall trophies)
+    numGrandFinalsWinners: settings.numGrandFinalsWinners || 3, // Default 3 (top 3 get overall trophies)
+    reportLayout: settings.reportLayout || null // Will be initialized below
   })
+
+  // Build initial layout items from class config
+  const buildInitialLayout = useCallback(() => {
+    const denClasses = initialClassConfig.filter(c => c.key !== initialGrandFinalsKey)
+    const leftItems = []
+    const rightItems = []
+    
+    // Distribute dens between columns, alternating
+    denClasses.forEach((cls, i) => {
+      const item = {
+        id: `den-${cls.key}`,
+        type: 'den',
+        key: cls.key,
+        name: cls.name,
+        racerCount: (raceData.resultsByClass[cls.key] || []).length
+      }
+      if (i % 2 === 0) leftItems.push(item)
+      else rightItems.push(item)
+    })
+    
+    // Add grand finals to left column
+    if (initialGrandFinalsKey) {
+      leftItems.push({
+        id: 'grand-finals',
+        type: 'grand-finals',
+        key: initialGrandFinalsKey,
+        name: initialClassConfig.find(c => c.key === initialGrandFinalsKey)?.name || 'Grand Finals',
+        racerCount: (raceData.resultsByClass[initialGrandFinalsKey] || []).length
+      })
+    }
+    
+    // Add slope chart to right column (only if grand finals exists)
+    if (initialGrandFinalsKey) {
+      rightItems.push({
+        id: 'slope-chart',
+        type: 'slope-chart',
+        name: 'Slope Chart',
+        racerCount: 0 // Fixed height
+      })
+    }
+    
+    return { leftColumn: leftItems, rightColumn: rightItems }
+  }, [initialClassConfig, initialGrandFinalsKey, raceData.resultsByClass])
+
+  // Initialize layout if not set
+  useMemo(() => {
+    if (!formData.reportLayout) {
+      const initialLayout = buildInitialLayout()
+      setFormData(prev => ({ ...prev, reportLayout: initialLayout }))
+    }
+  }, []) // Only run once on mount
+
+  // Drag state
+  const dragItem = useRef(null)
+  const dragOverItem = useRef(null)
+  const [dragColumn, setDragColumn] = useState(null)
+
+  const handleDragStart = useCallback((e, item, column) => {
+    dragItem.current = { item, column }
+    setDragColumn(column)
+    e.dataTransfer.effectAllowed = 'move'
+  }, [])
+
+  const handleDragOver = useCallback((e, targetItem, targetColumn) => {
+    e.preventDefault()
+    dragOverItem.current = { item: targetItem, column: targetColumn }
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    if (!dragItem.current || !dragOverItem.current) {
+      dragItem.current = null
+      dragOverItem.current = null
+      setDragColumn(null)
+      return
+    }
+
+    const { item: sourceItem, column: sourceColumn } = dragItem.current
+    const { item: targetItem, column: targetColumn } = dragOverItem.current
+
+    setFormData(prev => {
+      const layout = { ...prev.reportLayout }
+      const sourceList = [...layout[sourceColumn]]
+      const targetList = sourceColumn === targetColumn ? sourceList : [...layout[targetColumn]]
+
+      // Remove from source
+      const sourceIndex = sourceList.findIndex(i => i.id === sourceItem.id)
+      if (sourceIndex === -1) return prev
+      sourceList.splice(sourceIndex, 1)
+
+      // Find target index
+      let targetIndex = targetItem 
+        ? targetList.findIndex(i => i.id === targetItem.id)
+        : targetList.length
+      
+      // If moving within same column and source was before target, adjust
+      if (sourceColumn === targetColumn && sourceIndex < targetIndex) {
+        targetIndex--
+      }
+
+      // Insert at target
+      if (sourceColumn === targetColumn) {
+        sourceList.splice(targetIndex, 0, sourceItem)
+        layout[sourceColumn] = sourceList
+      } else {
+        targetList.splice(targetIndex, 0, sourceItem)
+        layout[sourceColumn] = sourceList
+        layout[targetColumn] = targetList
+      }
+
+      return { ...prev, reportLayout: layout }
+    })
+
+    dragItem.current = null
+    dragOverItem.current = null
+    setDragColumn(null)
+  }, [])
+
+  const handleColumnDrop = useCallback((e, targetColumn) => {
+    e.preventDefault()
+    if (!dragItem.current) return
+    
+    // If dropping on empty space in column, add to end
+    dragOverItem.current = { item: null, column: targetColumn }
+    handleDragEnd()
+  }, [handleDragEnd])
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target
@@ -126,9 +257,6 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     })
     return Array.from(names)
   }, [raceData.racers])
-
-  // Get included classes for preview
-  const includedClasses = formData.classConfig.filter(c => c.included)
   
   // Compute top racer for each class based on current avgMethod
   const getTopRacer = useCallback((classKey) => {
@@ -310,34 +438,121 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
           </div>
         </div>
 
-        {/* Report Layout Preview */}
+        {/* Report Layout Preview - Interactive Drag & Drop */}
         <div className="mb-8">
-          <h3 className="font-medium text-gray-700 mb-3">Layout Preview</h3>
-          <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              {/* Left Column */}
-              <div className="space-y-2">
-                {includedClasses.filter((_, i) => i % 2 === 0).map(cls => (
-                  <div key={cls.key} className="bg-white border border-gray-200 rounded p-2">
-                    <div className="font-bold text-derby-blue">{cls.name}</div>
-                    <div className="text-gray-500">{(raceData.resultsByClass[cls.key] || []).length} racers</div>
-                  </div>
-                ))}
+          <h3 className="font-medium text-gray-700 mb-2">Page Layout</h3>
+          <p className="text-sm text-gray-500 mb-3">
+            Drag items to reorder or move between columns. Heights are proportional to racer count.
+            Balance the columns so content fits on one page.
+          </p>
+          
+          {formData.reportLayout && (
+            <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+              {/* Two-column layout area */}
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                {/* Left Column */}
+                <div 
+                  className={`space-y-2 min-h-[100px] p-2 rounded border-2 border-dashed transition-colors ${
+                    dragColumn === 'rightColumn' ? 'border-blue-300 bg-blue-50' : 'border-transparent'
+                  }`}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleColumnDrop(e, 'leftColumn')}
+                >
+                  <div className="text-xs font-medium text-gray-400 mb-1">Left Column</div>
+                  {formData.reportLayout.leftColumn.map((item) => {
+                    const height = item.type === 'slope-chart' 
+                      ? CHART_HEIGHT 
+                      : Math.max(MIN_ITEM_HEIGHT, item.racerCount * HEIGHT_PER_RACER)
+                    const bgColor = item.type === 'grand-finals' 
+                      ? 'bg-yellow-100 border-yellow-300' 
+                      : item.type === 'slope-chart'
+                        ? 'bg-green-100 border-green-300'
+                        : 'bg-white border-gray-200'
+                    return (
+                      <div 
+                        key={item.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, item, 'leftColumn')}
+                        onDragOver={(e) => handleDragOver(e, item, 'leftColumn')}
+                        onDragEnd={handleDragEnd}
+                        className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-shadow text-xs`}
+                        style={{ minHeight: `${height}px` }}
+                      >
+                        <div className="font-bold text-derby-blue flex items-center gap-1">
+                          <span className="text-gray-400">☰</span>
+                          {item.name}
+                        </div>
+                        {item.racerCount > 0 && (
+                          <div className="text-gray-500">{item.racerCount} racers</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                
+                {/* Right Column */}
+                <div 
+                  className={`space-y-2 min-h-[100px] p-2 rounded border-2 border-dashed transition-colors ${
+                    dragColumn === 'leftColumn' ? 'border-blue-300 bg-blue-50' : 'border-transparent'
+                  }`}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => handleColumnDrop(e, 'rightColumn')}
+                >
+                  <div className="text-xs font-medium text-gray-400 mb-1">Right Column</div>
+                  {formData.reportLayout.rightColumn.map((item) => {
+                    const height = item.type === 'slope-chart' 
+                      ? CHART_HEIGHT 
+                      : Math.max(MIN_ITEM_HEIGHT, item.racerCount * HEIGHT_PER_RACER)
+                    const bgColor = item.type === 'grand-finals' 
+                      ? 'bg-yellow-100 border-yellow-300' 
+                      : item.type === 'slope-chart'
+                        ? 'bg-green-100 border-green-300'
+                        : 'bg-white border-gray-200'
+                    return (
+                      <div 
+                        key={item.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, item, 'rightColumn')}
+                        onDragOver={(e) => handleDragOver(e, item, 'rightColumn')}
+                        onDragEnd={handleDragEnd}
+                        className={`${bgColor} border rounded p-2 cursor-move hover:shadow-md transition-shadow text-xs`}
+                        style={{ minHeight: `${height}px` }}
+                      >
+                        <div className="font-bold text-derby-blue flex items-center gap-1">
+                          <span className="text-gray-400">☰</span>
+                          {item.name}
+                        </div>
+                        {item.racerCount > 0 && (
+                          <div className="text-gray-500">{item.racerCount} racers</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              {/* Right Column */}
-              <div className="space-y-2">
-                {includedClasses.filter((_, i) => i % 2 === 1).map(cls => (
-                  <div key={cls.key} className="bg-white border border-gray-200 rounded p-2">
-                    <div className="font-bold text-derby-blue">{cls.name}</div>
-                    <div className="text-gray-500">{(raceData.resultsByClass[cls.key] || []).length} racers</div>
-                  </div>
-                ))}
+              
+              {/* Column height indicators */}
+              <div className="grid grid-cols-2 gap-3 mb-3 text-xs text-center">
+                <div className="text-gray-500">
+                  Height: {formData.reportLayout.leftColumn.reduce((sum, item) => 
+                    sum + (item.type === 'slope-chart' ? 6 : item.racerCount), 0
+                  )} units
+                </div>
+                <div className="text-gray-500">
+                  Height: {formData.reportLayout.rightColumn.reduce((sum, item) => 
+                    sum + (item.type === 'slope-chart' ? 6 : item.racerCount), 0
+                  )} units
+                </div>
+              </div>
+              
+              {/* Fixed bottom elements */}
+              <div className="border-t pt-3 space-y-2">
+                <div className="bg-purple-100 border border-purple-300 rounded p-2 text-xs">
+                  <div className="font-bold text-derby-blue">Histogram (full width - always at bottom)</div>
+                </div>
               </div>
             </div>
-            <div className="mt-3 border-t pt-3 text-center text-xs text-gray-500">
-              Histogram (full width) • Design Awards • Charts
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Design Awards */}

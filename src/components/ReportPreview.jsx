@@ -105,6 +105,63 @@ function ReportPreview({ raceData, settings, onBack }) {
     )
   }, [grandFinalsData, settings.excludeGrandFinalsWinners, settings.numGrandFinalsWinners])
 
+  // Helper to render a layout item
+  const renderLayoutItem = useCallback((item) => {
+    if (item.type === 'den') {
+      const cls = orderedClasses.find(c => c.key === item.key)
+      if (!cls || cls.results.length === 0) return null
+      return (
+        <ResultsTable
+          key={item.id}
+          className={cls.name}
+          results={cls.results}
+          finalists={raceData.finalists}
+          wildcards={raceData.wildcards}
+          avgKey={avgKey}
+          excludedGrandFinalsWinners={excludedGrandFinalsWinners}
+        />
+      )
+    }
+    
+    if (item.type === 'grand-finals') {
+      if (grandFinalsData.length === 0) return null
+      return (
+        <ResultsTable
+          key={item.id}
+          className={grandFinalsClass?.name || "Grand Finals"}
+          results={grandFinalsData}
+          finalists={[]}
+          wildcards={[]}
+          showDenOrigin={true}
+          avgKey={avgKey}
+        />
+      )
+    }
+    
+    if (item.type === 'slope-chart') {
+      if (grandFinalsData.length === 0) return null
+      return (
+        <div key={item.id}>
+          <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
+            Slope Chart: Den Avg vs Grand Finals Avg
+          </h3>
+          <div className="chart-container" style={{ height: '350px' }}>
+            <SlopeChart 
+              grandFinalsData={grandFinalsData} 
+              denResultsByRacer={denResultsByRacer}
+              avgKey={avgKey}
+            />
+          </div>
+        </div>
+      )
+    }
+    
+    return null
+  }, [orderedClasses, grandFinalsData, grandFinalsClass, raceData, avgKey, excludedGrandFinalsWinners, denResultsByRacer])
+
+  // Use the layout from settings, or fall back to legacy layout
+  const reportLayout = settings.reportLayout
+
   return (
     <div>
       {/* Action Bar */}
@@ -151,73 +208,91 @@ function ReportPreview({ raceData, settings, onBack }) {
             <p className="text-lg font-heading text-gray-600">{uniqueRacerCount} Racers</p>
           </div>
 
-          {/* Den Results - Two Column Layout */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            {/* Left Column */}
-            <div className="space-y-4">
-              {denClasses.filter((_, i) => i % 2 === 0).map(cls => (
-                <ResultsTable
-                  key={cls.key}
-                  className={cls.name}
-                  results={cls.results}
-                  finalists={raceData.finalists}
-                  wildcards={raceData.wildcards}
-                  avgKey={avgKey}
-                  excludedGrandFinalsWinners={excludedGrandFinalsWinners}
-                />
-              ))}
-            </div>
-            
-            {/* Right Column */}
-            <div className="space-y-4">
-              {denClasses.filter((_, i) => i % 2 === 1).map(cls => (
-                <ResultsTable
-                  key={cls.key}
-                  className={cls.name}
-                  results={cls.results}
-                  finalists={raceData.finalists}
-                  wildcards={raceData.wildcards}
-                  avgKey={avgKey}
-                  excludedGrandFinalsWinners={excludedGrandFinalsWinners}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Grand Finals - Single Column */}
-          {grandFinalsData.length > 0 && (
+          {/* Two Column Layout - Using user-configured layout */}
+          {reportLayout ? (
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <ResultsTable
-                  className={grandFinalsClass?.name || "Grand Finals"}
-                  results={grandFinalsData}
-                  finalists={[]}
-                  wildcards={[]}
-                  showDenOrigin={true}
-                  avgKey={avgKey}
-                />
+              {/* Left Column */}
+              <div className="space-y-4">
+                {reportLayout.leftColumn.map(item => renderLayoutItem(item))}
               </div>
-              <div></div>
+              
+              {/* Right Column */}
+              <div className="space-y-4">
+                {reportLayout.rightColumn.map(item => renderLayoutItem(item))}
+              </div>
             </div>
-          )}
-
-          {/* Slope Chart - Single Column, after Grand Finals */}
-          {grandFinalsData.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
-                  Slope Chart: Den Avg vs Grand Finals Avg
-                </h3>
-                <div className="chart-container" style={{ height: '350px' }}>
-                  <SlopeChart 
-                    grandFinalsData={grandFinalsData} 
-                    denResultsByRacer={denResultsByRacer}
-                    avgKey={avgKey}
-                  />
+          ) : (
+            /* Fallback: Legacy layout */
+            <>
+              {/* Den Results - Two Column Layout */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  {denClasses.filter((_, i) => i % 2 === 0).map(cls => (
+                    <ResultsTable
+                      key={cls.key}
+                      className={cls.name}
+                      results={cls.results}
+                      finalists={raceData.finalists}
+                      wildcards={raceData.wildcards}
+                      avgKey={avgKey}
+                      excludedGrandFinalsWinners={excludedGrandFinalsWinners}
+                    />
+                  ))}
+                </div>
+                
+                {/* Right Column */}
+                <div className="space-y-4">
+                  {denClasses.filter((_, i) => i % 2 === 1).map(cls => (
+                    <ResultsTable
+                      key={cls.key}
+                      className={cls.name}
+                      results={cls.results}
+                      finalists={raceData.finalists}
+                      wildcards={raceData.wildcards}
+                      avgKey={avgKey}
+                      excludedGrandFinalsWinners={excludedGrandFinalsWinners}
+                    />
+                  ))}
                 </div>
               </div>
-              <div></div>
-            </div>
+
+              {/* Grand Finals - Single Column */}
+              {grandFinalsData.length > 0 && (
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <ResultsTable
+                      className={grandFinalsClass?.name || "Grand Finals"}
+                      results={grandFinalsData}
+                      finalists={[]}
+                      wildcards={[]}
+                      showDenOrigin={true}
+                      avgKey={avgKey}
+                    />
+                  </div>
+                  <div></div>
+                </div>
+              )}
+
+              {/* Slope Chart - Single Column, after Grand Finals */}
+              {grandFinalsData.length > 0 && (
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
+                      Slope Chart: Den Avg vs Grand Finals Avg
+                    </h3>
+                    <div className="chart-container" style={{ height: '350px' }}>
+                      <SlopeChart 
+                        grandFinalsData={grandFinalsData} 
+                        denResultsByRacer={denResultsByRacer}
+                        avgKey={avgKey}
+                      />
+                    </div>
+                  </div>
+                  <div></div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Design Awards */}

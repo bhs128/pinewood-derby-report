@@ -9,25 +9,12 @@ let SQL = null
 async function initSQL() {
   if (SQL) return SQL
   
-  // Try multiple CDN sources for reliability
-  const cdnUrls = [
-    'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.9.0',
-    'https://cdn.jsdelivr.net/npm/sql.js@1.9.0/dist',
-    'https://sql.js.org/dist'
-  ]
+  // Use local WASM file bundled with the app
+  SQL = await initSqlJs({
+    locateFile: () => `${import.meta.env.BASE_URL}sql-wasm.wasm`
+  })
   
-  for (const baseUrl of cdnUrls) {
-    try {
-      SQL = await initSqlJs({
-        locateFile: file => `${baseUrl}/${file}`
-      })
-      return SQL
-    } catch (e) {
-      console.warn(`Failed to load sql.js from ${baseUrl}:`, e.message)
-    }
-  }
-  
-  throw new Error('Failed to load sql.js WASM from all CDN sources')
+  return SQL
 }
 
 /**

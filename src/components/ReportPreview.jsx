@@ -75,14 +75,17 @@ function ReportPreview({ raceData, settings, onBack }) {
     return racerIds.size
   }, [denClasses])
 
-  // Build map of racerId -> den results for slope chart
+  // Build map of racer key (name+car) -> den results for slope chart
+  // Use firstName|lastName|carNumber as key since racerId (KidCarYear) includes class name
   const denResultsByRacer = useMemo(() => {
     const map = {}
     denClasses.forEach(cls => {
       cls.results.forEach(racer => {
+        // Create a key without class name for matching across den and grand finals
+        const key = `${racer.firstName}|${racer.lastName}|${racer.carNumber}`
         // Only keep first den result per racer (in case of duplicates)
-        if (!map[racer.racerId]) {
-          map[racer.racerId] = racer
+        if (!map[key]) {
+          map[key] = racer
         }
       })
     })

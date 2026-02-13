@@ -52,8 +52,12 @@ function SlopeChart({ grandFinalsData, denResultsByRacer, avgKey = 'avgExceptSlo
     // Create a dataset (line) for each racer
     const datasets = sorted.map((racer, index) => {
       const grandFinalsAvg = racer[avgKey] || racer.avgExceptSlowest || racer.avgTime
-      const denAvg = denResultsByRacer?.[racer.racerId]?.[avgKey] || 
-                     denResultsByRacer?.[racer.racerId]?.avgExceptSlowest ||
+      
+      // Look up den result using name+carNumber key (since KidCarYear includes class name)
+      const racerKey = `${racer.firstName}|${racer.lastName}|${racer.carNumber}`
+      const denResult = denResultsByRacer?.[racerKey]
+      const denAvg = denResult?.[avgKey] || 
+                     denResult?.avgExceptSlowest ||
                      grandFinalsAvg // Fallback to GF avg if no den data
       
       return {

@@ -45,6 +45,16 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       }))
   }, [raceData.classes, settings.classConfig])
   
+  // Auto-detect grand finals based on name
+  const initialGrandFinalsKey = useMemo(() => {
+    if (settings.grandFinalsKey) return settings.grandFinalsKey
+    const gf = initialClassConfig.find(c => 
+      c.name.toLowerCase().includes('grand final') || 
+      c.name.toLowerCase().includes('grand prix final')
+    )
+    return gf ? gf.key : null
+  }, [initialClassConfig, settings.grandFinalsKey])
+  
   const [formData, setFormData] = useState({
     title: settings.title || 'Pack Pinewood Derby',
     year: settings.year || new Date().getFullYear(),
@@ -56,6 +66,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       carName: ''
     })),
     classConfig: initialClassConfig,
+    grandFinalsKey: initialGrandFinalsKey,
     avgMethod: settings.avgMethod || 'dropSlowest' // 'dropSlowest' or 'allHeats'
   })
 
@@ -94,6 +105,13 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       classConfig: prev.classConfig.map(cls =>
         cls.key === classKey ? { ...cls, included: !cls.included } : cls
       )
+    }))
+  }, [])
+
+  const handleSetGrandFinals = useCallback((classKey) => {
+    setFormData(prev => ({
+      ...prev,
+      grandFinalsKey: prev.grandFinalsKey === classKey ? null : classKey
     }))
   }, [])
 
@@ -246,7 +264,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
         <div className="mb-8">
           <h3 className="font-medium text-gray-700 mb-3">Classes/Dens to Include</h3>
           <p className="text-sm text-gray-500 mb-3">
-            Check dens to include in report. Use arrows to reorder. Dens will display in two columns.
+            Check dens to include in report. Mark one class as Grand Finals for the slope chart comparison.
           </p>
           
           <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -254,18 +272,20 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="px-3 py-2 text-left w-12">Include</th>
+                  <th className="px-3 py-2 text-center w-16">Finals</th>
                   <th className="px-3 py-2 text-left">Class/Den Name</th>
-                  <th className="px-3 py-2 text-center w-24"># Racers</th>
+                  <th className="px-3 py-2 text-center w-20"># Racers</th>
                   <th className="px-3 py-2 text-left">Top Racer</th>
-                  <th className="px-3 py-2 text-center w-24">Order</th>
+                  <th className="px-3 py-2 text-center w-20">Order</th>
                 </tr>
               </thead>
               <tbody>
                 {formData.classConfig.map((cls, index) => {
                   const results = raceData.resultsByClass[cls.key] || []
                   const topRacer = getTopRacer(cls.key)
+                  const isGrandFinals = formData.grandFinalsKey === cls.key
                   return (
-                    <tr key={cls.key} className={`border-t ${cls.included ? '' : 'bg-gray-50 text-gray-400'}`}>
+                    <tr key={cls.key} className={`border-t ${cls.included ? '' : 'bg-gray-50 text-gray-400'} ${isGrandFinals ? 'bg-yellow-50' : ''}`}>
                       <td className="px-3 py-2">
                         <input
                           type="checkbox"
@@ -274,7 +294,20 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                           className="rounded text-derby-blue"
                         />
                       </td>
-                      <td className="px-3 py-2 font-medium">{cls.name}</td>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="radio"
+                          name="grandFinalsKey"
+                          checked={isGrandFinals}
+                          onChange={() => handleSetGrandFinals(cls.key)}
+                          className="text-yellow-500"
+                          title="Mark as Grand Finals"
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-medium">
+                        {cls.name}
+                        {isGrandFinals && <span className="ml-2 text-xs text-yellow-600">★ Finals</span>}
+                      </td>
                       <td className="px-3 py-2 text-center">{results.length}</td>
                       <td className="px-3 py-2">
                         {topRacer ? `${topRacer.firstName} ${topRacer.lastName}` : '-'}

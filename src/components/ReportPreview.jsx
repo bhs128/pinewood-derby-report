@@ -52,21 +52,17 @@ function ReportPreview({ raceData, settings, onBack }) {
     return classList
   }, [raceData, settings.classConfig, avgKey])
 
-  // Separate grand finals from den classes
-  const denClasses = orderedClasses.filter(c => 
-    !c.name.toLowerCase().includes('grand final')
-  )
-  const grandFinalsClass = orderedClasses.find(c => 
-    c.name.toLowerCase().includes('grand final')
-  )
+  // Separate grand finals from den classes using user-selected grandFinalsKey
+  const grandFinalsKey = settings.grandFinalsKey
+  
+  const denClasses = orderedClasses.filter(c => c.key !== grandFinalsKey)
+  const grandFinalsClass = orderedClasses.find(c => c.key === grandFinalsKey)
 
-  // Use grandFinalsResults if available, or the class results
+  // Use the selected grand finals class results
   const grandFinalsData = useMemo(() => {
-    const data = raceData.grandFinalsResults && raceData.grandFinalsResults.length > 0
-      ? [...raceData.grandFinalsResults]
-      : (grandFinalsClass ? [...grandFinalsClass.results] : [])
-    return data.sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
-  }, [raceData.grandFinalsResults, grandFinalsClass, avgKey])
+    if (!grandFinalsClass) return []
+    return [...grandFinalsClass.results].sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
+  }, [grandFinalsClass, avgKey])
 
   // Count unique racers from included classes (excluding grand finals to avoid double-counting)
   const uniqueRacerCount = useMemo(() => {

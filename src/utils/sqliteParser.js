@@ -2,6 +2,37 @@
 let SQL = null
 
 /**
+ * Standard den names for mapping
+ */
+export const STANDARD_DEN_NAMES = [
+  "Lion Den",
+  "Tiger Den", 
+  "Wolf Den",
+  "Bear Den",
+  "Webelos Den",
+  "Arrow of Light",
+  "Grand Finals"
+]
+
+/**
+ * Best-guess mapping from raw class names to standard den names
+ */
+export function guessStandardDenName(rawClassName) {
+  const lower = rawClassName.toLowerCase()
+  
+  if (lower.includes('lion')) return 'Lion Den'
+  if (lower.includes('tiger')) return 'Tiger Den'
+  if (lower.includes('wolf') || lower.includes('wolves')) return 'Wolf Den'
+  if (lower.includes('bear')) return 'Bear Den'
+  if (lower.includes('webelos')) return 'Webelos Den'
+  if (lower.includes('arrow') || lower.includes('aol')) return 'Arrow of Light'
+  if (lower.includes('grand') || lower.includes('final')) return 'Grand Finals'
+  
+  // No match - return null to indicate user must map manually
+  return null
+}
+
+/**
  * Load sql.js from CDN dynamically
  */
 function loadSqlJsScript() {
@@ -95,73 +126,144 @@ export async function parseDatabase(file) {
 }
 
 /**
- * Extract race data from a GrandPrix Race Manager database
+ * Extract race data using the standardized intermediate format
  * @param {Object} db - Database object from parseDatabase
- * @returns {Object} - Extracted race data
+ * @param {number} year - The year to use for this database
+ * @returns {Object} - Extracted race data with standardized fields
  */
-export function extractRaceData(db) {
-  // Get classes
-  const classes = db.query('SELECT ClassID, Class FROM Classes ORDER BY ClassID')
-  
-  // Get registration info
-  const racers = db.query(`
+export function extractIntermediateData(db, year) {
+  const query = `
     SELECT 
-      RacerID, CarNumber, CarName, LastName, FirstName, ClassID, RankID
-    FROM RegistrationInfo
-    WHERE Exclude = 0
-    ORDER BY ClassID, LastName, FirstName
-  `)
+      "${year}" as Year, 
+      FirstName, 
+      LastName, 
+      CarNumber, 
+      Class, 
+      RoundID, 
+      Heat, 
+      Lane, 
+      Completed, 
+      FinishTime, 
+      FinishPlace,
+      (FirstName || " " || LastName) as FullName,
+      (FirstName || " " || LastName || " (#" || CarNumber || "'" || "${year}" || ") - " || Class) as KidCarYear
+    FROM RegistrationInfo, RaceChart, Classes 
+    WHERE RaceChart.RacerID = RegistrationInfo.RacerID 
+      AND RaceChart.ClassID = Classes.ClassID
+  `
   
-  // Get race results with all details
-  const raceResults = db.query(`
-    SELECT 
-      r.RacerID,
-      r.FirstName,
-      r.LastName,
-      r.CarNumber,
-      r.CarName,
-      c.ClassID,
-      c.Class,
-      rc.RoundID,
-      rc.Heat,
-      rc.Lane,
-      rc.FinishTime,
-      rc.FinishPlace,
-      rc.Completed
-    FROM RegistrationInfo r
-    JOIN RaceChart rc ON r.RacerID = rc.RacerID
-    JOIN Classes c ON rc.ClassID = c.ClassID
-    WHERE rc.FinishTime IS NOT NULL AND rc.FinishTime > 0
-    ORDER BY c.ClassID, rc.Heat, rc.Lane
-  `)
+  const results = db.query(query)
+  
+  // Get unique class names for mapping
+  const uniqueClasses = [...new Set(results.map(r => r.Class))]
   
   return {
-    classes: classes.map(c => ({
-      id: c.ClassID,
-      name: c.Class
-    })),
-    racers: racers.map(r => ({
-      racerId: r.RacerID,
-      carNumber: r.CarNumber,
-      carName: r.CarName,
-      lastName: r.LastName,
-      firstName: r.FirstName,
-      classId: r.ClassID
-    })),
-    raceResults: raceResults.map(r => ({
-      racerId: r.RacerID,
-      firstName: r.FirstName,
-      lastName: r.LastName,
-      carNumber: r.CarNumber,
-      carName: r.CarName,
-      classId: r.ClassID,
-      className: r.Class,
-      roundId: r.RoundID,
-      heat: r.Heat,
-      lane: r.Lane,
-      finishTime: r.FinishTime,
-      finishPlace: r.FinishPlace,
-      completed: r.Completed
-    }))
+    rawRecords: results,
+    uniqueClasses,
+    year
   }
 }
+
+/**
+ * Apply class name mapping to intermediate data
+ * @param {Array} records - Raw records from extractIntermediateData
+ * @param {Object} classMapping - Map from raw class name to standard den name
+ * @param {number} year - The year for this data
+ * @returns {Array} - Records with mapped class names
+ */
+export function applyClassMapping(records, classMapping, year) {
+  return records.map(record => {
+    const mappedClass = classMapping[record.Class] || record.Class
+    const kidCarYear = `${record.FirstName} ${record.LastName} (#${record.CarNumber}'${year}) - ${mappedClass}`
+    
+    return {
+      ...record,
+      OriginalClass: record.Class,
+      Class: mappedClass,
+      KidCarYear: kidCarYear
+    }
+  })
+}
+
+/**
+ * Perform sanity check on merged data
+ * Ensures each KidCarYear appears in exactly one den race (excluding Grand Finals)
+ * @param {Array} mergedRecords - All merged records with mapped classes
+ * @returns {Object} - Sanity check results with warnings
+ */
+export function performSanityCheck(mergedRecords, grandFinalsClass = 'Grand Finals') {
+  const warnings = []
+  
+  // Get all unique KidCarYear values
+  const kidCarYears = [...new Set(mergedRecords.map(r => r.KidCarYear))]
+  
+  // For each KidCarYear, check which dens they appear in (excluding Grand Finals)
+  const denParticipation = new Map()
+  
+  kidCarYears.forEach(kcy => {
+    const participantRecords = mergedRecords.filter(r => r.KidCarYear === kcy)
+    const dens = [...new Set(participantRecords.map(r => r.Class))]
+      .filter(cls => cls !== grandFinalsClass)
+    
+    denParticipation.set(kcy, dens)
+  })
+  
+  // Check for issues
+  const multiDenRacers = []
+  const noDenRacers = []
+  
+  denParticipation.forEach((dens, kcy) => {
+    if (dens.length > 1) {
+      multiDenRacers.push({ kidCarYear: kcy, dens })
+    } else if (dens.length === 0) {
+      // Only in Grand Finals - might be an issue or might be intentional
+      noDenRacers.push({ kidCarYear: kcy })
+    }
+  })
+  
+  if (multiDenRacers.length > 0) {
+    warnings.push({
+      type: 'multi-den',
+      severity: 'error',
+      message: `${multiDenRacers.length} racer(s) appear in multiple den races`,
+      details: multiDenRacers
+    })
+  }
+  
+  if (noDenRacers.length > 0) {
+    warnings.push({
+      type: 'no-den',
+      severity: 'warning',
+      message: `${noDenRacers.length} racer(s) appear only in Grand Finals without a den race`,
+      details: noDenRacers
+    })
+  }
+  
+  // Check for Grand Finals participants who aren't in a den race
+  const grandFinalsKCYs = [...new Set(
+    mergedRecords
+      .filter(r => r.Class === grandFinalsClass)
+      .map(r => r.KidCarYear)
+  )]
+  
+  const gfNotInDen = grandFinalsKCYs.filter(kcy => {
+    const dens = denParticipation.get(kcy) || []
+    return dens.length === 0
+  })
+  
+  if (gfNotInDen.length > 0 && noDenRacers.length === 0) {
+    warnings.push({
+      type: 'gf-no-den',
+      severity: 'info',
+      message: `${gfNotInDen.length} Grand Finals participant(s) have no den race data`,
+      details: gfNotInDen.map(kcy => ({ kidCarYear: kcy }))
+    })
+  }
+  
+  return {
+    isValid: warnings.filter(w => w.severity === 'error').length === 0,
+    warnings,
+    denParticipation: Object.fromEntries(denParticipation)
+  }
+}
+

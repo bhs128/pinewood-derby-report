@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Calibri', 'Open Sans', system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #213547;
+  background-color: #f5f5f5;
+}
+
+/* Print styles for PDF generation */
+@media print {
+  @page {
+    size: landscape;
+    margin: 0.5in;
+  }
+  
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Results table styling */
+.results-table {
+  border-collapse: collapse;
+  font-size: 11pt;
+}
+
+.results-table th {
+  background-color: #000;
+  color: white;
+  padding: 4px 8px;
+  font-weight: 700;
+  border-bottom: 1.5px solid white;
+}
+
+.results-table td {
+  padding: 2px 8px;
+}
+
+.results-table .place-1 {
+  background-color: #FFC000;
+  color: white;
+}
+
+.results-table .place-2 {
+  background-color: #A5A5A5;
+  color: white;
+}
+
+.results-table .place-3 {
+  background-color: #C65911;
+  color: white;
+}
+
+/* Report preview container */
+.report-preview {
+  background: white;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  padding: 0.5in;
+  width: 11in;
+  min-height: 8.5in;
+}
+
+/* Chart container */
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}

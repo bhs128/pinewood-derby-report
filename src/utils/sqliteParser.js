@@ -1,7 +1,23 @@
-import initSqlJs from 'sql.js'
-
 // Cache the SQL.js initialization
 let SQL = null
+
+/**
+ * Load sql.js from CDN dynamically
+ */
+function loadSqlJsScript() {
+  return new Promise((resolve, reject) => {
+    if (window.initSqlJs) {
+      resolve(window.initSqlJs)
+      return
+    }
+    
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js'
+    script.onload = () => resolve(window.initSqlJs)
+    script.onerror = () => reject(new Error('Failed to load sql.js'))
+    document.head.appendChild(script)
+  })
+}
 
 /**
  * Initialize sql.js (loads the WASM file)
@@ -9,9 +25,10 @@ let SQL = null
 async function initSQL() {
   if (SQL) return SQL
   
-  // Use local WASM file bundled with the app
+  const initSqlJs = await loadSqlJsScript()
+  
   SQL = await initSqlJs({
-    locateFile: () => `${import.meta.env.BASE_URL}sql-wasm.wasm`
+    locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.wasm'
   })
   
   return SQL

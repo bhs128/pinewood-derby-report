@@ -21,79 +21,77 @@ ChartJS.register(
   Legend
 )
 
-function SlopeChart({ data }) {
+// Color palette for racers
+const RACER_COLORS = [
+  'rgba(213, 62, 79, 1)',
+  'rgba(252, 141, 89, 1)',
+  'rgba(254, 224, 139, 1)',
+  'rgba(230, 245, 152, 1)',
+  'rgba(153, 213, 148, 1)',
+  'rgba(50, 136, 189, 1)',
+  'rgba(94, 79, 162, 1)',
+  'rgba(171, 221, 164, 1)',
+  'rgba(102, 194, 165, 1)',
+  'rgba(158, 154, 200, 1)',
+  'rgba(188, 189, 220, 1)',
+  'rgba(228, 196, 159, 1)'
+]
+
+function SlopeChart({ grandFinalsData, denResultsByRacer, avgKey = 'avgExceptSlowest' }) {
   const chartData = useMemo(() => {
-    if (!data || data.length === 0) return null
+    if (!grandFinalsData || grandFinalsData.length === 0) return null
     
-    // Sort by average time
-    const sorted = [...data].sort((a, b) => a.avgExceptSlowest - b.avgExceptSlowest)
+    // Two categories on x-axis: Den Avg and Grand Finals Avg
+    const labels = ['Den Avg', 'Grand Finals Avg']
     
-    // Create labels (racer names)
-    const labels = sorted.map(r => `${r.firstName} ${r.lastName}`)
+    // Sort racers by grand finals performance
+    const sorted = [...grandFinalsData].sort((a, b) => 
+      (a[avgKey] || a.avgExceptSlowest || 0) - (b[avgKey] || b.avgExceptSlowest || 0)
+    )
     
-    // Data points showing den race avg vs grand finals avg
-    // For slope chart, we show the improvement/change
+    // Create a dataset (line) for each racer
+    const datasets = sorted.map((racer, index) => {
+      const grandFinalsAvg = racer[avgKey] || racer.avgExceptSlowest || racer.avgTime
+      const denAvg = denResultsByRacer?.[racer.racerId]?.[avgKey] || 
+                     denResultsByRacer?.[racer.racerId]?.avgExceptSlowest ||
+                     grandFinalsAvg // Fallback to GF avg if no den data
+      
+      return {
+        label: `${racer.firstName} ${racer.lastName}`,
+        data: [denAvg, grandFinalsAvg],
+        borderColor: RACER_COLORS[index % RACER_COLORS.length],
+        backgroundColor: RACER_COLORS[index % RACER_COLORS.length],
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0,
+        fill: false,
+        borderWidth: 2
+      }
+    })
     
-    return {
-      labels,
-      datasets: [
-        {
-          label: 'Average Time',
-          data: sorted.map(r => r.avgExceptSlowest || r.avgTime),
-          borderColor: 'rgba(0, 51, 102, 1)',
-          backgroundColor: 'rgba(0, 51, 102, 0.8)',
-          pointRadius: 6,
-          pointHoverRadius: 8,
-          tension: 0,
-          fill: false
-        },
-        {
-          label: 'Best Time',
-          data: sorted.map(r => r.bestTime),
-          borderColor: 'rgba(34, 197, 94, 1)',
-          backgroundColor: 'rgba(34, 197, 94, 0.8)',
-          pointRadius: 4,
-          pointStyle: 'triangle',
-          tension: 0,
-          fill: false,
-          borderDash: [5, 5]
-        },
-        {
-          label: 'Worst Time',
-          data: sorted.map(r => r.worstTime),
-          borderColor: 'rgba(239, 68, 68, 1)',
-          backgroundColor: 'rgba(239, 68, 68, 0.8)',
-          pointRadius: 4,
-          pointStyle: 'cross',
-          tension: 0,
-          fill: false,
-          borderDash: [2, 2]
-        }
-      ]
-    }
-  }, [data])
+    return { labels, datasets }
+  }, [grandFinalsData, denResultsByRacer, avgKey])
 
   if (!chartData) {
     return <div className="text-gray-400 text-center py-8">No finalist data available</div>
   }
 
   const options = {
-    indexAxis: 'y',  // Horizontal chart
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        position: 'bottom',
+        position: 'right',
         labels: {
-          boxWidth: 12,
-          padding: 8,
-          font: { size: 10 }
+          boxWidth: 10,
+          padding: 6,
+          font: { size: 9 }
         }
       },
       tooltip: {
         callbacks: {
           label: (context) => {
-            return `${context.dataset.label}: ${context.parsed.x.toFixed(4)}s`
+            return `${context.dataset.label}: ${context.parsed.y.toFixed(4)}s`
           }
         }
       }
@@ -101,8 +99,19 @@ function SlopeChart({ data }) {
     scales: {
       x: {
         title: {
+          display: false
+        },
+        ticks: {
+          font: { size: 11, weight: 'bold' }
+        },
+        grid: {
+          display: false
+        }
+      },
+      y: {
+        title: {
           display: true,
-          text: 'Finish Time (seconds)',
+          text: 'Avg Time (seconds)',
           font: { size: 11 }
         },
         ticks: {
@@ -110,17 +119,6 @@ function SlopeChart({ data }) {
         },
         grid: {
           color: 'rgba(0, 0, 0, 0.1)'
-        }
-      },
-      y: {
-        title: {
-          display: false
-        },
-        ticks: {
-          font: { size: 10 }
-        },
-        grid: {
-          display: false
         }
       }
     },

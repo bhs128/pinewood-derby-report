@@ -79,6 +79,20 @@ function ReportPreview({ raceData, settings, onBack }) {
     return racerIds.size
   }, [denClasses])
 
+  // Build map of racerId -> den results for slope chart
+  const denResultsByRacer = useMemo(() => {
+    const map = {}
+    denClasses.forEach(cls => {
+      cls.results.forEach(racer => {
+        // Only keep first den result per racer (in case of duplicates)
+        if (!map[racer.racerId]) {
+          map[racer.racerId] = racer
+        }
+      })
+    })
+    return map
+  }, [denClasses])
+
   return (
     <div>
       {/* Action Bar */}
@@ -212,10 +226,14 @@ function ReportPreview({ raceData, settings, onBack }) {
           {grandFinalsData.length > 0 && (
             <div className="mb-6">
               <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
-                Slope Chart of Finalists' Avg Times
+                Slope Chart: Den Avg vs Grand Finals Avg
               </h3>
-              <div className="chart-container" style={{ height: '300px' }}>
-                <SlopeChart data={grandFinalsData} />
+              <div className="chart-container" style={{ height: '350px' }}>
+                <SlopeChart 
+                  grandFinalsData={grandFinalsData} 
+                  denResultsByRacer={denResultsByRacer}
+                  avgKey={avgKey}
+                />
               </div>
             </div>
           )}

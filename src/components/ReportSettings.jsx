@@ -5,11 +5,37 @@ const DEFAULT_DESIGN_CATEGORIES = [
   'Most Humorous',
   'Most Patriotic',
   'Most Creative',
-  'Best Paint Job',
-  'Most Realistic'
+  'Best Use of Color',
+  'Best Use of Decals'
 ]
 
+// Standard den order for Cub Scouts
+const STANDARD_DEN_ORDER = [
+  'lion', 'lions', 'lion den',
+  'tiger', 'tigers', 'tiger den',
+  'wolf', 'wolves', 'wolf den',
+  'bear', 'bears', 'bear den',
+  'webelos', 'webelos den',
+  'arrow of light', 'aol',
+  'grand final', 'grand finals'
+]
+
+function getDenSortOrder(name) {
+  const lower = name.toLowerCase()
+  for (let i = 0; i < STANDARD_DEN_ORDER.length; i++) {
+    if (lower.includes(STANDARD_DEN_ORDER[i])) {
+      return i
+    }
+  }
+  return 999
+}
+
 function ReportSettings({ raceData, settings, onComplete, onBack }) {
+  // Initialize class config with sorted order
+  const sortedClasses = [...raceData.classes].sort((a, b) => 
+    getDenSortOrder(a.name) - getDenSortOrder(b.name)
+  )
+  
   const [formData, setFormData] = useState({
     title: settings.title || 'Pack Pinewood Derby',
     year: settings.year || new Date().getFullYear(),
@@ -19,7 +45,16 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       category: cat,
       winner: '',
       carName: ''
-    }))
+    })),
+    // Class configuration with include/exclude and ordering
+    classConfig: settings.classConfig || sortedClasses.map((cls, i) => ({
+      id: cls.id,
+      name: cls.name,
+      included: !cls.name.toLowerCase().includes('sibling'), // exclude siblings by default
+      order: i
+    })),
+    // Average calculation method
+    avgMethod: settings.avgMethod || 'dropSlowest' // 'dropSlowest' or 'allHeats'
   })
 
   const handleInputChange = useCallback((e) => {
@@ -50,6 +85,31 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     }))
   }, [])
 
+  // Class configuration handlers
+  const handleClassToggle = useCallback((classId) => {
+    setFormData(prev => ({
+      ...prev,
+      classConfig: prev.classConfig.map(cls =>
+        cls.id === classId ? { ...cls, included: !cls.included } : cls
+      )
+    }))
+  }, [])
+
+  const moveClass = useCallback((index, direction) => {
+    setFormData(prev => {
+      const newConfig = [...prev.classConfig]
+      const newIndex = index + direction
+      if (newIndex < 0 || newIndex >= newConfig.length) return prev
+      
+      // Swap
+      [newConfig[index], newConfig[newIndex]] = [newConfig[newIndex], newConfig[index]]
+      // Update order values
+      newConfig.forEach((cls, i) => cls.order = i)
+      
+      return { ...prev, classConfig: newConfig }
+    })
+  }, [])
+
   const handleSubmit = useCallback((e) => {
     e.preventDefault()
     onComplete(formData)
@@ -60,8 +120,11 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     `${r.firstName} ${r.lastName} (#${r.carNumber})`
   )
 
+  // Get included classes for preview
+  const includedClasses = formData.classConfig.filter(c => c.included)
+
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-8">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Report Configuration</h2>
 
@@ -123,30 +186,130 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
           </div>
         </div>
 
-        {/* Race Data Summary */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-8">
-          <h3 className="font-medium text-gray-700 mb-3">Data Summary</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="bg-white p-3 rounded shadow-sm">
-              <div className="text-2xl font-bold text-derby-blue">{raceData.racers.length}</div>
-              <div className="text-gray-500">Racers</div>
-            </div>
-            <div className="bg-white p-3 rounded shadow-sm">
-              <div className="text-2xl font-bold text-derby-blue">{raceData.classes.length}</div>
-              <div className="text-gray-500">Classes/Dens</div>
-            </div>
-            <div className="bg-white p-3 rounded shadow-sm">
-              <div className="text-2xl font-bold text-derby-blue">{raceData.totalHeats}</div>
-              <div className="text-gray-500">Total Heats</div>
-            </div>
-            <div className="bg-white p-3 rounded shadow-sm">
-              <div className="text-2xl font-bold text-derby-blue">{raceData.totalRaces}</div>
-              <div className="text-gray-500">Individual Races</div>
-            </div>
+        {/* Average Calculation Method */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+          <h3 className="font-medium text-gray-700 mb-3">Average Time Calculation</h3>
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="avgMethod"
+                value="dropSlowest"
+                checked={formData.avgMethod === 'dropSlowest'}
+                onChange={handleInputChange}
+                className="text-derby-blue"
+              />
+              <span>Drop slowest heat (recommended)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="avgMethod"
+                value="allHeats"
+                checked={formData.avgMethod === 'allHeats'}
+                onChange={handleInputChange}
+                className="text-derby-blue"
+              />
+              <span>Average all heats</span>
+            </label>
           </div>
+          <p className="text-sm text-gray-500 mt-2">
+            "Drop slowest" excludes each racer's worst time, matching official scoring.
+          </p>
+        </div>
+
+        {/* Classes/Dens Configuration */}
+        <div className="mb-8">
+          <h3 className="font-medium text-gray-700 mb-3">Classes/Dens to Include</h3>
+          <p className="text-sm text-gray-500 mb-3">
+            Check dens to include in report. Use arrows to reorder. Dens will display in two columns.
+          </p>
           
-          <div className="mt-3 text-sm text-gray-600">
-            <strong>Classes found:</strong> {raceData.classes.map(c => c.name).join(', ')}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-3 py-2 text-left w-12">Include</th>
+                  <th className="px-3 py-2 text-left">Class/Den Name</th>
+                  <th className="px-3 py-2 text-center w-24"># Racers</th>
+                  <th className="px-3 py-2 text-left">Top Racer</th>
+                  <th className="px-3 py-2 text-center w-24">Order</th>
+                </tr>
+              </thead>
+              <tbody>
+                {formData.classConfig.map((cls, index) => {
+                  const results = raceData.resultsByClass[cls.id] || []
+                  const topRacer = results[0]
+                  return (
+                    <tr key={cls.id} className={`border-t ${cls.included ? '' : 'bg-gray-50 text-gray-400'}`}>
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={cls.included}
+                          onChange={() => handleClassToggle(cls.id)}
+                          className="rounded text-derby-blue"
+                        />
+                      </td>
+                      <td className="px-3 py-2 font-medium">{cls.name}</td>
+                      <td className="px-3 py-2 text-center">{results.length}</td>
+                      <td className="px-3 py-2">
+                        {topRacer ? `${topRacer.firstName} ${topRacer.lastName}` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <div className="flex justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moveClass(index, -1)}
+                            disabled={index === 0}
+                            className="p-1 text-gray-500 hover:text-derby-blue disabled:opacity-30"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveClass(index, 1)}
+                            disabled={index === formData.classConfig.length - 1}
+                            className="p-1 text-gray-500 hover:text-derby-blue disabled:opacity-30"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Report Layout Preview */}
+        <div className="mb-8">
+          <h3 className="font-medium text-gray-700 mb-3">Layout Preview</h3>
+          <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              {/* Left Column */}
+              <div className="space-y-2">
+                {includedClasses.filter((_, i) => i % 2 === 0).map(cls => (
+                  <div key={cls.id} className="bg-white border border-gray-200 rounded p-2">
+                    <div className="font-bold text-derby-blue">{cls.name}</div>
+                    <div className="text-gray-500">{(raceData.resultsByClass[cls.id] || []).length} racers</div>
+                  </div>
+                ))}
+              </div>
+              {/* Right Column */}
+              <div className="space-y-2">
+                {includedClasses.filter((_, i) => i % 2 === 1).map(cls => (
+                  <div key={cls.id} className="bg-white border border-gray-200 rounded p-2">
+                    <div className="font-bold text-derby-blue">{cls.name}</div>
+                    <div className="text-gray-500">{(raceData.resultsByClass[cls.id] || []).length} racers</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3 border-t pt-3 text-center text-xs text-gray-500">
+              Histogram (full width) • Design Awards • Charts
+            </div>
           </div>
         </div>
 

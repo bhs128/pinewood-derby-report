@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useState, useMemo } from 'react'
 import ResultsTable from './ResultsTable'
 import HistogramChart from './charts/HistogramChart'
 import SlopeChart from './charts/SlopeChart'
@@ -26,14 +26,46 @@ function ReportPreview({ raceData, settings, onBack }) {
     window.print()
   }, [])
 
-  // Group classes for two-column layout
-  const denClasses = raceData.classes.filter(c => 
-    !c.name.toLowerCase().includes('grand') && 
-    !c.name.toLowerCase().includes('sibling')
+  // Get the sort key based on avgMethod setting
+  const avgKey = settings.avgMethod === 'allHeats' ? 'avgTime' : 'avgExceptSlowest'
+
+  // Use class config if provided, otherwise fall back to raceData.classes
+  const orderedClasses = useMemo(() => {
+    const classList = settings.classConfig
+      ? settings.classConfig
+          .filter(c => c.included)
+          .sort((a, b) => a.order - b.order)
+          .map(cfg => ({
+            ...cfg,
+            results: [...(raceData.resultsByClass[cfg.id] || [])]
+              .sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
+          }))
+      : raceData.classes
+          .filter(c => !c.name.toLowerCase().includes('sibling'))
+          .map(cls => ({
+            id: cls.id,
+            name: cls.name,
+            results: [...(raceData.resultsByClass[cls.id] || [])]
+              .sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
+          }))
+    return classList
+  }, [raceData, settings.classConfig, avgKey])
+
+  // Separate grand finals from den classes
+  const denClasses = orderedClasses.filter(c => 
+    !c.name.toLowerCase().includes('grand final')
   )
-  const grandFinalsClass = raceData.classes.find(c => 
-    c.name.toLowerCase().includes('grand')
+  const grandFinalsClass = orderedClasses.find(c => 
+    c.name.toLowerCase().includes('grand final')
   )
+
+  // Use grandFinalsResults if available, or the class results
+  const grandFinalsData = useMemo(() => {
+    const data = raceData.grandFinalsResults && raceData.grandFinalsResults.length > 0
+      ? [...raceData.grandFinalsResults]
+      : (grandFinalsClass ? [...grandFinalsClass.results] : [])
+    return data.sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
+  }, [raceData.grandFinalsResults, grandFinalsClass, avgKey])
 
   return (
     <div>
@@ -89,9 +121,10 @@ function ReportPreview({ raceData, settings, onBack }) {
                 <ResultsTable
                   key={cls.id}
                   className={cls.name}
-                  results={raceData.resultsByClass[cls.id] || []}
+                  results={cls.results}
                   finalists={raceData.finalists}
                   wildcards={raceData.wildcards}
+                  avgKey={avgKey}
                 />
               ))}
             </div>
@@ -102,24 +135,28 @@ function ReportPreview({ raceData, settings, onBack }) {
                 <ResultsTable
                   key={cls.id}
                   className={cls.name}
-                  results={raceData.resultsByClass[cls.id] || []}
+                  results={cls.results}
                   finalists={raceData.finalists}
                   wildcards={raceData.wildcards}
+                  avgKey={avgKey}
                 />
               ))}
-              
-              {/* Grand Finals in right column */}
-              {grandFinalsClass && (
-                <ResultsTable
-                  className="Grand Finals"
-                  results={raceData.resultsByClass[grandFinalsClass.id] || raceData.grandFinalsResults || []}
-                  finalists={[]}
-                  wildcards={[]}
-                  showDenOrigin={true}
-                />
-              )}
             </div>
           </div>
+
+          {/* Grand Finals - Full Width */}
+          {grandFinalsData.length > 0 && (
+            <div className="mb-6">
+              <ResultsTable
+                className="Grand Finals"
+                results={grandFinalsData}
+                finalists={[]}
+                wildcards={[]}
+                showDenOrigin={true}
+                avgKey={avgKey}
+              />
+            </div>
+          )}
 
           {/* Design Awards */}
           {settings.designAwards && settings.designAwards.some(a => a.winner) && (
@@ -146,33 +183,30 @@ function ReportPreview({ raceData, settings, onBack }) {
             </div>
           )}
 
-          {/* Charts Section */}
-          <div className="grid grid-cols-2 gap-6 mt-6">
-            {/* Finalist Slope Chart */}
-            {raceData.grandFinalsResults && raceData.grandFinalsResults.length > 0 && (
-              <div>
-                <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
-                  Slope Chart of Finalists' Avg Times
-                </h3>
-                <div className="chart-container">
-                  <SlopeChart data={raceData.grandFinalsResults} />
-                </div>
-              </div>
-            )}
-
-            {/* Histogram */}
-            <div>
-              <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
-                Histogram of All Finish Times
-              </h3>
-              <div className="chart-container">
-                <HistogramChart 
-                  data={raceData.allTimes} 
-                  classes={raceData.classes}
-                />
-              </div>
+          {/* Histogram - Full Width */}
+          <div className="mb-6">
+            <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
+              Histogram of All Finish Times
+            </h3>
+            <div className="chart-container" style={{ height: '250px' }}>
+              <HistogramChart 
+                data={raceData.allTimes} 
+                classes={raceData.classes}
+              />
             </div>
           </div>
+
+          {/* Slope Chart - Only if Grand Finals data exists */}
+          {grandFinalsData.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-center font-heading border-b border-black pb-1 mb-3">
+                Slope Chart of Finalists' Avg Times
+              </h3>
+              <div className="chart-container" style={{ height: '300px' }}>
+                <SlopeChart data={grandFinalsData} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -20,13 +20,13 @@ export async function generatePDF(element, filename = 'pinewood-derby-report.pdf
     windowHeight: element.scrollHeight
   })
   
-  // Calculate dimensions for landscape letter size
-  const imgWidth = 11  // inches
-  const imgHeight = 8.5  // inches
+  // Calculate dimensions for portrait letter size
+  const imgWidth = 8.5  // inches
+  const imgHeight = 11  // inches
   
-  // Create PDF in landscape orientation
+  // Create PDF in portrait orientation
   const pdf = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'in',
     format: 'letter'
   })
@@ -71,13 +71,13 @@ export async function generateMultiPagePDF(element, filename = 'pinewood-derby-r
   })
   
   const pdf = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'in',
     format: 'letter'
   })
   
-  const pageWidth = 11
-  const pageHeight = 8.5
+  const pageWidth = 8.5
+  const pageHeight = 11
   const margin = 0.5
   
   const contentWidth = pageWidth - (margin * 2)

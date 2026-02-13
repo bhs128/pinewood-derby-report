@@ -1,4 +1,4 @@
-function ResultsTable({ className, results, finalists = [], wildcards = [], showDenOrigin = false }) {
+function ResultsTable({ className, results, finalists = [], wildcards = [], showDenOrigin = false, avgKey = 'avgExceptSlowest' }) {
   if (!results || results.length === 0) {
     return null
   }
@@ -30,6 +30,9 @@ function ResultsTable({ className, results, finalists = [], wildcards = [], show
                 ? 'wildcard' 
                 : ''
             
+            // Use the specified average key
+            const avgTime = racer[avgKey] || racer.avgTime || 0
+            
             return (
               <tr key={racer.racerId}>
                 <td className={`text-center ${placeClass}`}>
@@ -43,7 +46,7 @@ function ResultsTable({ className, results, finalists = [], wildcards = [], show
                     <span className="text-xs italic text-gray-500 ml-2">{racer.originalClass} finalist</span>
                   )}
                 </td>
-                <td className="text-right font-mono">{racer.avgTime.toFixed(4)}</td>
+                <td className="text-right font-mono">{avgTime.toFixed(4)}</td>
                 <td className="text-right font-mono">{racer.bestTime.toFixed(3)}</td>
                 <td className="text-right font-mono">{racer.worstTime.toFixed(3)}</td>
               </tr>

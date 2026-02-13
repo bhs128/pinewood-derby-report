@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 
 const DEFAULT_DESIGN_CATEGORIES = [
   'Most Likely to Win',
@@ -31,10 +31,19 @@ function getDenSortOrder(name) {
 }
 
 function ReportSettings({ raceData, settings, onComplete, onBack }) {
-  // Initialize class config with sorted order
-  const sortedClasses = [...raceData.classes].sort((a, b) => 
-    getDenSortOrder(a.name) - getDenSortOrder(b.name)
-  )
+  // Initialize class config with sorted order - use useMemo to avoid recreating on every render
+  const initialClassConfig = useMemo(() => {
+    if (settings.classConfig) return settings.classConfig
+    
+    return [...raceData.classes]
+      .sort((a, b) => getDenSortOrder(a.name) - getDenSortOrder(b.name))
+      .map((cls, i) => ({
+        key: cls.name.toLowerCase(), // Use lowercase name as stable key
+        name: cls.name,
+        included: !cls.name.toLowerCase().includes('sibling'), // exclude siblings by default
+        order: i
+      }))
+  }, [raceData.classes, settings.classConfig])
   
   const [formData, setFormData] = useState({
     title: settings.title || 'Pack Pinewood Derby',
@@ -46,14 +55,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
       winner: '',
       carName: ''
     })),
-    // Class configuration with include/exclude and ordering
-    classConfig: settings.classConfig || sortedClasses.map((cls, i) => ({
-      id: cls.id,
-      name: cls.name,
-      included: !cls.name.toLowerCase().includes('sibling'), // exclude siblings by default
-      order: i
-    })),
-    // Average calculation method
+    classConfig: initialClassConfig,
     avgMethod: settings.avgMethod || 'dropSlowest' // 'dropSlowest' or 'allHeats'
   })
 
@@ -86,11 +88,11 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
   }, [])
 
   // Class configuration handlers
-  const handleClassToggle = useCallback((classId) => {
+  const handleClassToggle = useCallback((classKey) => {
     setFormData(prev => ({
       ...prev,
       classConfig: prev.classConfig.map(cls =>
-        cls.id === classId ? { ...cls, included: !cls.included } : cls
+        cls.key === classKey ? { ...cls, included: !cls.included } : cls
       )
     }))
   }, [])
@@ -115,13 +117,35 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     onComplete(formData)
   }, [formData, onComplete])
 
-  // Get list of racers for autocomplete
+  // Get the averaging key based on method
+  const avgKey = formData.avgMethod === 'allHeats' ? 'avgTime' : 'avgExceptSlowest'
+
+  // Get list of racers for autocomplete (name only for winner field)
   const racerOptions = raceData.racers.map(r => 
-    `${r.firstName} ${r.lastName} (#${r.carNumber})`
+    `${r.firstName} ${r.lastName}`
   )
+  
+  // Get list of car names for autocomplete
+  const carNameOptions = useMemo(() => {
+    const names = new Set()
+    raceData.racers.forEach(r => {
+      if (r.carName) names.add(r.carName)
+    })
+    return Array.from(names)
+  }, [raceData.racers])
 
   // Get included classes for preview
   const includedClasses = formData.classConfig.filter(c => c.included)
+  
+  // Compute top racer for each class based on current avgMethod
+  const getTopRacer = useCallback((classKey) => {
+    const results = raceData.resultsByClass[classKey] || []
+    if (results.length === 0) return null
+    
+    // Sort by the selected avg method
+    const sorted = [...results].sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
+    return sorted[0]
+  }, [raceData.resultsByClass, avgKey])
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -238,15 +262,15 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
               </thead>
               <tbody>
                 {formData.classConfig.map((cls, index) => {
-                  const results = raceData.resultsByClass[cls.id] || []
-                  const topRacer = results[0]
+                  const results = raceData.resultsByClass[cls.key] || []
+                  const topRacer = getTopRacer(cls.key)
                   return (
-                    <tr key={cls.id} className={`border-t ${cls.included ? '' : 'bg-gray-50 text-gray-400'}`}>
+                    <tr key={cls.key} className={`border-t ${cls.included ? '' : 'bg-gray-50 text-gray-400'}`}>
                       <td className="px-3 py-2">
                         <input
                           type="checkbox"
                           checked={cls.included}
-                          onChange={() => handleClassToggle(cls.id)}
+                          onChange={() => handleClassToggle(cls.key)}
                           className="rounded text-derby-blue"
                         />
                       </td>
@@ -291,18 +315,18 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
               {/* Left Column */}
               <div className="space-y-2">
                 {includedClasses.filter((_, i) => i % 2 === 0).map(cls => (
-                  <div key={cls.id} className="bg-white border border-gray-200 rounded p-2">
+                  <div key={cls.key} className="bg-white border border-gray-200 rounded p-2">
                     <div className="font-bold text-derby-blue">{cls.name}</div>
-                    <div className="text-gray-500">{(raceData.resultsByClass[cls.id] || []).length} racers</div>
+                    <div className="text-gray-500">{(raceData.resultsByClass[cls.key] || []).length} racers</div>
                   </div>
                 ))}
               </div>
               {/* Right Column */}
               <div className="space-y-2">
                 {includedClasses.filter((_, i) => i % 2 === 1).map(cls => (
-                  <div key={cls.id} className="bg-white border border-gray-200 rounded p-2">
+                  <div key={cls.key} className="bg-white border border-gray-200 rounded p-2">
                     <div className="font-bold text-derby-blue">{cls.name}</div>
-                    <div className="text-gray-500">{(raceData.resultsByClass[cls.id] || []).length} racers</div>
+                    <div className="text-gray-500">{(raceData.resultsByClass[cls.key] || []).length} racers</div>
                   </div>
                 ))}
               </div>
@@ -358,9 +382,15 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                     type="text"
                     value={award.carName}
                     onChange={(e) => handleAwardChange(index, 'carName', e.target.value)}
+                    list={`carnames-${index}`}
                     className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-derby-blue"
                     placeholder="Car Name"
                   />
+                  <datalist id={`carnames-${index}`}>
+                    {carNameOptions.map((name, i) => (
+                      <option key={i} value={name} />
+                    ))}
+                  </datalist>
                 </div>
                 <button
                   type="button"

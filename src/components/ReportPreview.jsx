@@ -37,15 +37,16 @@ function ReportPreview({ raceData, settings, onBack }) {
           .sort((a, b) => a.order - b.order)
           .map(cfg => ({
             ...cfg,
-            results: [...(raceData.resultsByClass[cfg.id] || [])]
+            // Use key (lowercase name) for resultsByClass lookup
+            results: [...(raceData.resultsByClass[cfg.key] || [])]
               .sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
           }))
       : raceData.classes
           .filter(c => !c.name.toLowerCase().includes('sibling'))
           .map(cls => ({
-            id: cls.id,
+            key: cls.name.toLowerCase(),
             name: cls.name,
-            results: [...(raceData.resultsByClass[cls.id] || [])]
+            results: [...(raceData.resultsByClass[cls.name.toLowerCase()] || [])]
               .sort((a, b) => (a[avgKey] || 0) - (b[avgKey] || 0))
           }))
     return classList
@@ -119,7 +120,7 @@ function ReportPreview({ raceData, settings, onBack }) {
             <div className="space-y-4">
               {denClasses.filter((_, i) => i % 2 === 0).map(cls => (
                 <ResultsTable
-                  key={cls.id}
+                  key={cls.key}
                   className={cls.name}
                   results={cls.results}
                   finalists={raceData.finalists}
@@ -133,7 +134,7 @@ function ReportPreview({ raceData, settings, onBack }) {
             <div className="space-y-4">
               {denClasses.filter((_, i) => i % 2 === 1).map(cls => (
                 <ResultsTable
-                  key={cls.id}
+                  key={cls.key}
                   className={cls.name}
                   results={cls.results}
                   finalists={raceData.finalists}

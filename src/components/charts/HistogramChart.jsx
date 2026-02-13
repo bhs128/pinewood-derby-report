@@ -49,10 +49,14 @@ function HistogramChart({ data, classes, binWidth = 0.02 }) {
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return null
     
-    // Determine range
+    // Determine range based on statistics
     const times = data.map(d => d.time).filter(t => t > 0)
-    const minTime = Math.floor(Math.min(...times) * 50) / 50  // Round down to nearest 0.02
-    const maxTime = Math.ceil(Math.max(...times) * 50) / 50   // Round up to nearest 0.02
+    const sum = times.reduce((a, b) => a + b, 0)
+    const mean = sum / times.length
+    
+    // X-axis: 0.5 seconds below mean to 2x the mean
+    const minTime = Math.floor((mean - 0.5) * 50) / 50  // Round down to nearest 0.02
+    const maxTime = Math.ceil((mean * 2) * 50) / 50     // Round up to nearest 0.02
     
     // Create bins
     const bins = []

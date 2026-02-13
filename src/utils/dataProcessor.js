@@ -45,7 +45,7 @@ export function processRaceData(databases) {
   // Calculate statistics per racer per class
   const racerStats = calculateRacerStats(allRaceResults)
   
-  // Group results by class
+  // Group results by class (using lowercase name as key for consistency)
   const resultsByClass = {}
   classes.forEach(cls => {
     const classResults = racerStats.filter(r => 
@@ -53,7 +53,9 @@ export function processRaceData(databases) {
     )
     // Sort by average time (excluding slowest)
     classResults.sort((a, b) => a.avgExceptSlowest - b.avgExceptSlowest)
-    resultsByClass[cls.id] = classResults
+    // Use lowercase name as key for reliable lookups across databases
+    const classKey = cls.name.toLowerCase()
+    resultsByClass[classKey] = classResults
   })
   
   // Identify finalists (top 1 from each den)
@@ -66,14 +68,15 @@ export function processRaceData(databases) {
   )
   
   denClasses.forEach(cls => {
-    const results = resultsByClass[cls.id]
+    const classKey = cls.name.toLowerCase()
+    const results = resultsByClass[classKey]
     if (results && results.length > 0) {
       finalists.push(results[0].racerId)
     }
   })
   
   // Identify wildcards (fastest non-finalists)
-  const allDenResults = denClasses.flatMap(cls => resultsByClass[cls.id] || [])
+  const allDenResults = denClasses.flatMap(cls => resultsByClass[cls.name.toLowerCase()] || [])
   const nonFinalists = allDenResults.filter(r => !finalists.includes(r.racerId))
   nonFinalists.sort((a, b) => a.avgExceptSlowest - b.avgExceptSlowest)
   
@@ -88,7 +91,7 @@ export function processRaceData(databases) {
     c.name.toLowerCase().includes('grand')
   )
   const grandFinalsResults = grandFinalsClass 
-    ? resultsByClass[grandFinalsClass.id] 
+    ? resultsByClass[grandFinalsClass.name.toLowerCase()] 
     : []
   
   // Calculate totals

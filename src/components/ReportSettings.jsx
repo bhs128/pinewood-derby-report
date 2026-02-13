@@ -23,7 +23,8 @@ const STANDARD_DEN_ORDER = [
 // Height per racer in pixels for layout preview (scaled down)
 const HEIGHT_PER_RACER = 8
 const MIN_ITEM_HEIGHT = 24
-const CHART_HEIGHT = 60
+const CHART_HEIGHT = 100 // Slope chart
+const DESIGN_AWARD_HEIGHT_PER_ITEM = 12 // Per award winner
 
 function getDenSortOrder(name) {
   const lower = name.toLowerCase()
@@ -122,6 +123,14 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
         racerCount: 0 // Fixed height
       })
     }
+    
+    // Add design awards (always present, height based on number of filled awards)
+    rightItems.push({
+      id: 'design-awards',
+      type: 'design-awards',
+      name: 'Design Awards',
+      racerCount: 0 // Will be calculated dynamically
+    })
     
     return { leftColumn: leftItems, rightColumn: rightItems }
   }, [initialClassConfig, initialGrandFinalsKey, raceData.resultsByClass])
@@ -290,17 +299,17 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
   // Get deduplicated list of racers for autocomplete (by name)
   // Also build a map of name -> racer info for auto-filling car details
   const { racerOptions, racerInfoMap } = useMemo(() => {
-    const seenNames = new Map() // name -> {carNumber, carName}
+    const seenNames = new Map() // displayName -> {carNumber, carName}
     const options = []
     
     raceData.racers.forEach(r => {
-      const name = `${r.firstName} ${r.lastName}`
-      if (!seenNames.has(name)) {
-        seenNames.set(name, {
+      const displayName = `${r.firstName} ${r.lastName} (Car #${r.carNumber})`
+      if (!seenNames.has(displayName)) {
+        seenNames.set(displayName, {
           carNumber: r.carNumber,
           carName: r.carName || ''
         })
-        options.push(name)
+        options.push(displayName)
       }
     })
     
@@ -522,7 +531,43 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
             Balance the columns so content fits on one page.
           </p>
           
-          {formData.reportLayout && (
+          {formData.reportLayout && (() => {
+            // Calculate number of design awards with winners for height
+            const filledAwardsCount = formData.designAwards.filter(a => a.winner).length
+            const designAwardsHeight = Math.max(MIN_ITEM_HEIGHT, filledAwardsCount * DESIGN_AWARD_HEIGHT_PER_ITEM)
+            
+            // Helper to get item height
+            const getItemHeight = (item) => {
+              if (item.type === 'slope-chart') return CHART_HEIGHT
+              if (item.type === 'design-awards') return designAwardsHeight
+              return Math.max(MIN_ITEM_HEIGHT, item.racerCount * HEIGHT_PER_RACER)
+            }
+            
+            // Helper to get item height units (for column balance indicator)
+            const getItemUnits = (item) => {
+              if (item.type === 'slope-chart') return 10, // Slope chart counts as ~10 racers
+              if (item.type === 'design-awards') return Math.max(2, filledAwardsCount)
+              return item.racerCount
+            }
+            
+            // Helper to get bg color
+            const getBgColor = (item) => {
+              if (item.type === 'grand-finals') return 'bg-yellow-100 border-yellow-300'
+              if (item.type === 'slope-chart') return 'bg-green-100 border-green-300'
+              if (item.type === 'design-awards') return 'bg-pink-100 border-pink-300'
+              return 'bg-white border-gray-200'
+            }
+            
+            // Helper to get item subtitle
+            const getItemSubtitle = (item) => {
+              if (item.type === 'design-awards') {
+                return filledAwardsCount > 0 ? `${filledAwardsCount} winner${filledAwardsCount > 1 ? 's' : ''}` : 'no winners yet'
+              }
+              if (item.racerCount > 0) return `${item.racerCount} racers`
+              return null
+            }
+            
+            return (
             <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
               {/* Two-column layout area */}
               <div className="grid grid-cols-2 gap-3 mb-3">
@@ -536,14 +581,9 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                 >
                   <div className="text-xs font-medium text-gray-400 mb-1">Left Column</div>
                   {formData.reportLayout.leftColumn.map((item) => {
-                    const height = item.type === 'slope-chart' 
-                      ? CHART_HEIGHT 
-                      : Math.max(MIN_ITEM_HEIGHT, item.racerCount * HEIGHT_PER_RACER)
-                    const bgColor = item.type === 'grand-finals' 
-                      ? 'bg-yellow-100 border-yellow-300' 
-                      : item.type === 'slope-chart'
-                        ? 'bg-green-100 border-green-300'
-                        : 'bg-white border-gray-200'
+                    const height = getItemHeight(item)
+                    const bgColor = getBgColor(item)
+                    const subtitle = getItemSubtitle(item)
                     const isDropTarget = dragOverTarget?.itemId === item.id
                     const dropPosition = dragOverTarget?.position
                     return (
@@ -575,8 +615,8 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                           <span className="text-gray-400">☰</span>
                           {item.name}
                         </div>
-                        {item.racerCount > 0 && (
-                          <div className="text-gray-500">{item.racerCount} racers</div>
+                        {subtitle && (
+                          <div className="text-gray-500">{subtitle}</div>
                         )}
                       </div>
                     )
@@ -593,14 +633,9 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                 >
                   <div className="text-xs font-medium text-gray-400 mb-1">Right Column</div>
                   {formData.reportLayout.rightColumn.map((item) => {
-                    const height = item.type === 'slope-chart' 
-                      ? CHART_HEIGHT 
-                      : Math.max(MIN_ITEM_HEIGHT, item.racerCount * HEIGHT_PER_RACER)
-                    const bgColor = item.type === 'grand-finals' 
-                      ? 'bg-yellow-100 border-yellow-300' 
-                      : item.type === 'slope-chart'
-                        ? 'bg-green-100 border-green-300'
-                        : 'bg-white border-gray-200'
+                    const height = getItemHeight(item)
+                    const bgColor = getBgColor(item)
+                    const subtitle = getItemSubtitle(item)
                     const isDropTarget = dragOverTarget?.itemId === item.id
                     const dropPosition = dragOverTarget?.position
                     return (
@@ -632,8 +667,8 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                           <span className="text-gray-400">☰</span>
                           {item.name}
                         </div>
-                        {item.racerCount > 0 && (
-                          <div className="text-gray-500">{item.racerCount} racers</div>
+                        {subtitle && (
+                          <div className="text-gray-500">{subtitle}</div>
                         )}
                       </div>
                     )
@@ -645,12 +680,12 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
               <div className="grid grid-cols-2 gap-3 mb-3 text-xs text-center">
                 <div className="text-gray-500">
                   Height: {formData.reportLayout.leftColumn.reduce((sum, item) => 
-                    sum + (item.type === 'slope-chart' ? 6 : item.racerCount), 0
+                    sum + getItemUnits(item), 0
                   )} units
                 </div>
                 <div className="text-gray-500">
                   Height: {formData.reportLayout.rightColumn.reduce((sum, item) => 
-                    sum + (item.type === 'slope-chart' ? 6 : item.racerCount), 0
+                    sum + getItemUnits(item), 0
                   )} units
                 </div>
               </div>
@@ -662,7 +697,7 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
                 </div>
               </div>
             </div>
-          )}
+          )})}
         </div>
 
         {/* Design Awards */}

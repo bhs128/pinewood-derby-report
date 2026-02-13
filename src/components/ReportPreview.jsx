@@ -156,8 +156,35 @@ function ReportPreview({ raceData, settings, onBack }) {
       )
     }
     
+    if (item.type === 'design-awards') {
+      if (!settings.designAwards || !settings.designAwards.some(a => a.winner)) return null
+      return (
+        <div key={item.id}>
+          <h2 className="text-center font-medium text-gray-700 mb-2">Car Design Winners</h2>
+          <table className="results-table mx-auto">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Scout (Car #)</th>
+                <th>Car Name</th>
+              </tr>
+            </thead>
+            <tbody>
+              {settings.designAwards.filter(a => a.winner).map((award, i) => (
+                <tr key={i}>
+                  <td>{award.category}</td>
+                  <td>{award.winner}</td>
+                  <td className="text-right italic">{award.carName}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+    
     return null
-  }, [orderedClasses, grandFinalsData, grandFinalsClass, raceData, avgKey, excludedGrandFinalsWinners, denResultsByRacer])
+  }, [orderedClasses, grandFinalsData, grandFinalsClass, raceData, avgKey, excludedGrandFinalsWinners, denResultsByRacer, settings.designAwards])
 
   // Use the layout from settings, or fall back to legacy layout
   const reportLayout = settings.reportLayout
@@ -295,15 +322,15 @@ function ReportPreview({ raceData, settings, onBack }) {
             </>
           )}
 
-          {/* Design Awards */}
-          {settings.designAwards && settings.designAwards.some(a => a.winner) && (
+          {/* Design Awards - Only in fallback layout */}
+          {!reportLayout && settings.designAwards && settings.designAwards.some(a => a.winner) && (
             <div className="mb-6">
               <h2 className="text-center font-medium text-gray-700 mb-2">Car Design Winners</h2>
               <table className="results-table mx-auto">
                 <thead>
                   <tr>
                     <th>Category</th>
-                    <th>Scout (Car Number)</th>
+                    <th>Scout (Car #)</th>
                     <th>Car Name</th>
                   </tr>
                 </thead>

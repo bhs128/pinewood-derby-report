@@ -72,7 +72,9 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
     })),
     classConfig: initialClassConfig,
     grandFinalsKey: initialGrandFinalsKey,
-    avgMethod: settings.avgMethod || 'dropSlowest' // 'dropSlowest' or 'allHeats'
+    avgMethod: settings.avgMethod || 'dropSlowest', // 'dropSlowest' or 'allHeats'
+    excludeGrandFinalsWinners: settings.excludeGrandFinalsWinners ?? true, // Default to true (GrandPrix Race Manager default)
+    numGrandFinalsWinners: settings.numGrandFinalsWinners || 3 // Default 3 (top 3 get overall trophies)
   })
 
   const handleInputChange = useCallback((e) => {
@@ -231,6 +233,42 @@ function ReportSettings({ raceData, settings, onComplete, onBack }) {
           <p className="text-sm text-gray-500 mt-2">
             "Drop slowest" excludes each racer's worst time, matching official scoring.
           </p>
+        </div>
+
+        {/* Exclude Grand Finals Winners from Den Rankings */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-8">
+          <h3 className="font-medium text-gray-700 mb-3">Grand Finals Winner Exclusion</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            In GrandPrix Race Manager, this is under "Software Settings → Standings → Other Standing Options".
+            When enabled, the top finishers in Grand Finals don't receive den trophies (since they already won larger overall trophies).
+            The 1st/2nd/3rd places for each den will skip over these racers.
+          </p>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="excludeGrandFinalsWinners"
+                checked={formData.excludeGrandFinalsWinners}
+                onChange={(e) => setFormData(prev => ({ ...prev, excludeGrandFinalsWinners: e.target.checked }))}
+                className="w-4 h-4 text-derby-blue rounded"
+              />
+              <span>Exclude Grand Finals Winners from Den Rankings</span>
+            </label>
+            {formData.excludeGrandFinalsWinners && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Number of winners:</label>
+                <input
+                  type="number"
+                  name="numGrandFinalsWinners"
+                  min="1"
+                  max="10"
+                  value={formData.numGrandFinalsWinners}
+                  onChange={(e) => setFormData(prev => ({ ...prev, numGrandFinalsWinners: parseInt(e.target.value) || 3 }))}
+                  className="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-derby-blue"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Classes/Dens Summary (read-only, set in mapping step) */}

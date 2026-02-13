@@ -92,6 +92,19 @@ function ReportPreview({ raceData, settings, onBack }) {
     return map
   }, [denClasses])
 
+  // Calculate the grand finals winners (top N) that should be excluded from den rankings
+  // Uses racer key (name+car) instead of racerId since racerId includes class name
+  const excludedGrandFinalsWinners = useMemo(() => {
+    if (!settings.excludeGrandFinalsWinners || grandFinalsData.length === 0) {
+      return []
+    }
+    const numWinners = settings.numGrandFinalsWinners || 3
+    // Top N racers in grand finals - create keys without class name for matching
+    return grandFinalsData.slice(0, numWinners).map(r => 
+      `${r.firstName}|${r.lastName}|${r.carNumber}`
+    )
+  }, [grandFinalsData, settings.excludeGrandFinalsWinners, settings.numGrandFinalsWinners])
+
   return (
     <div>
       {/* Action Bar */}
@@ -150,6 +163,7 @@ function ReportPreview({ raceData, settings, onBack }) {
                   finalists={raceData.finalists}
                   wildcards={raceData.wildcards}
                   avgKey={avgKey}
+                  excludedGrandFinalsWinners={excludedGrandFinalsWinners}
                 />
               ))}
             </div>
@@ -164,6 +178,7 @@ function ReportPreview({ raceData, settings, onBack }) {
                   finalists={raceData.finalists}
                   wildcards={raceData.wildcards}
                   avgKey={avgKey}
+                  excludedGrandFinalsWinners={excludedGrandFinalsWinners}
                 />
               ))}
             </div>
